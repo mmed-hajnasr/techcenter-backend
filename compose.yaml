@@ -1,0 +1,89 @@
+services:
+  postgres:
+    image: postgres:18.1-bookworm
+    container_name: postgres_techcenter
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      DATABASE__USERNAME: ${DATABASE__USERNAME}
+      DATABASE__PASSWORD: ${DATABASE__PASSWORD}
+    ports:
+      - "${DATABASE__PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    command: postgres -N 1000
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 1s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: "json-file"
+      options:
+        tag: "{{.Name}}"
+    networks:
+      - techcenter_network
+
+  redis:
+    image: redis:8.4.0
+    container_name: redis_techcenter
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    environment:
+      ALLOW_EMPTY_PASSWORD: "yes"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1s
+      timeout: 3s
+      retries: 50
+    logging:
+      driver: "json-file"
+      options:
+        tag: "{{.Name}}"
+    networks:
+      - techcenter_network
+
+  jaeger:
+    container_name: jaeger_techcenter
+    image: jaegertracing/jaeger:${JAEGER_VERSION:-2.10.0}
+    ports:
+      # Jaeger UI
+      - "16686:16686"
+      # OTLP gRPC receiver
+      - "4317:4317"
+      # OTLP HTTP receiver
+      - "4318:4318"
+      # Jaeger Thrift compact (used by some clients)
+      - "6831:6831/udp"
+      # Jaeger Thrift binary (used by some clients)
+      - "6832:6832/udp"
+      # Health check
+      - "14269:14269"
+    environment:
+      - LOG_LEVEL=${JAEGER_LOG_LEVEL:-info}
+      - COLLECTOR_OTLP_ENABLED=true
+      # Enable OTLP gRPC receiver
+      - COLLECTOR_OTLP_GRPC_HOST_PORT=:4317
+      # Enable OTLP HTTP receiver
+      - COLLECTOR_OTLP_HTTP_HOST_PORT=:4318
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:14269/"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    logging:
+      driver: "json-file"
+      options:
+        tag: "{{.Name}}"
+    networks:
+      - techcenter_network
+
+volumes:
+  postgres_data:
+    name: techcenter_agents_postgres_data
+
+networks:
+  techcenter_network:
+    name: techcenter_network
+    driver: bridge

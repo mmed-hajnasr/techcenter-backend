@@ -1,0 +1,94 @@
+package com.isi.techcenter_backend.auth.service;
+
+import java.util.Optional;
+import java.util.UUID;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.isi.techcenter_backend.auth.entity.UserEntity;
+import com.isi.techcenter_backend.auth.error.AppErrorType;
+import com.isi.techcenter_backend.auth.error.AuthException;
+import com.isi.techcenter_backend.auth.model.AuthResponse;
+import com.isi.techcenter_backend.auth.model.LoginRequest;
+import com.isi.techcenter_backend.auth.model.SignupRequest;
+import com.isi.techcenter_backend.auth.repository.UserRepository;
+import com.isi.techcenter_backend.auth.security.JwtService;
+
+@Service
+public class AuthService {
+
+    private final UserRepository userRepository;
+    private final PasswordService passwordService;
+    private final JwtService jwtService;
+
+    public AuthService(UserRepository userRepository, PasswordService passwordService, JwtService jwtService) {
+        this.userRepository = userRepository;
+        this.passwordService = passwordService;
+        this.jwtService = jwtService;
+    }
+
+    @Transactional
+    public AuthResponse signup(SignupRequest request) {
+        String normalizedEmail = request.email().trim().toLowerCase();
+        String normalizedUsername = request.username().trim();
+
+        if (normalizedUsername.length() < 3) {
+            throw new AuthException(AppErrorType.INVALID_USERNAME, "Username must be at least 3 characters");
+        }
+
+        if (userRepository.existsByEmailIgnoreCase(normalizedEmail)) {
+            throw new AuthException(AppErrorType.INVALID_EMAIL, "Email is already in use");
+        }
+
+        UserEntity user = new UserEntity();
+        user.setEmail(normalizedEmail);
+        user.setUsername(normalizedUsername);
+        user.setPasswordHash(passwordService.hashPassword(request.password()));
+
+        UserEntity savedUser = userRepository.save(user);
+        String token = jwtService.generateAccessToken(savedUser.getUserId());
+
+        return new AuthResponse(
+                savedUser.getUserId(),
+                savedUser.getEmail(),
+                savedUser.getUsername(),
+                savedUser.getCreatedAt(),
+                token,
+                jwtService.getExpirationSeconds());
+    }
+
+    @Transactional(readOnly = true)
+    public AuthResponse login(LoginRequest request) {
+        String normalizedIdentifier = request.identifier().trim();
+
+        Optional<UserEntity> user = userRepository.findByEmailIgnoreCase(normalizedIdentifier)
+                .or(() -> userRepository.findFirstByUsernameIgnoreCase(normalizedIdentifier));
+
+        if (user.isEmpty()) {
+            passwordService.verifyAgainstFallback(request.password());
+            throw new AuthException(AppErrorType.INCORRECT_LOGIN, "Incorrect credentials");
+        }
+
+        UserEntity existingUser = user.get();
+        if (!passwordService.verifyPassword(request.password(), existingUser.getPasswordHash())) {
+            throw new AuthException(AppErrorType.INCORRECT_LOGIN, "Incorrect credentials");
+        }
+
+        String token = jwtService.generateAccessToken(existingUser.getUserId());
+
+        return new AuthResponse(
+                existingUser.getUserId(),
+                existingUser.getEmail(),
+                existingUser.getUsername(),
+                existingUser.getCreatedAt(),
+                token,
+                jwtService.getExpirationSeconds());
+    }
+
+    @Transactional(readOnly = true)
+    public UserEntity getUserById(UUID userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new AuthException(AppErrorType.NOT_LOGGED_IN, "User not found"));
+    }
+}
