@@ -6,7 +6,6 @@ import java.util.UUID;
 
 public record ResearcherAdminResponse(
                 UUID researcherId,
-                String email,
                 String name,
                 String biographie,
                 List<DomainResponse> domains,

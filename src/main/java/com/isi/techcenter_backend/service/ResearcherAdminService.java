@@ -54,19 +54,13 @@ public class ResearcherAdminService {
 
     @Transactional
     public ResearcherAdminResponse createResearcher(ResearcherUpdateRequest request) {
-        String normalizedEmail = request.email().trim().toLowerCase();
         String normalizedName = request.name().trim();
 
         if (normalizedName.length() < 3) {
             throw new AuthException(AppErrorType.INVALID_USERNAME, "Name must be at least 3 characters");
         }
 
-        if (chercheurRepository.existsByEmailIgnoreCase(normalizedEmail)) {
-            throw new AuthException(AppErrorType.INVALID_EMAIL, "Email is already in use");
-        }
-
         ChercheurEntity researcher = new ChercheurEntity();
-        researcher.setEmail(normalizedEmail);
         researcher.setName(normalizedName);
         researcher.setBiographie(normalizeBiography(request.biographie()));
         ChercheurEntity savedResearcher = chercheurRepository.save(researcher);
@@ -82,18 +76,12 @@ public class ResearcherAdminService {
     public ResearcherAdminResponse updateResearcher(UUID researcherId, ResearcherUpdateRequest request) {
         ChercheurEntity researcher = findResearcherWithSpecialisations(researcherId);
 
-        String normalizedEmail = request.email().trim().toLowerCase();
         String normalizedName = request.name().trim();
 
         if (normalizedName.length() < 3) {
             throw new AuthException(AppErrorType.INVALID_USERNAME, "Name must be at least 3 characters");
         }
 
-        if (chercheurRepository.existsByEmailIgnoreCaseAndChercheurIdNot(normalizedEmail, researcherId)) {
-            throw new AuthException(AppErrorType.INVALID_EMAIL, "Email is already in use");
-        }
-
-        researcher.setEmail(normalizedEmail);
         researcher.setName(normalizedName);
         researcher.setBiographie(normalizeBiography(request.biographie()));
         chercheurRepository.save(researcher);
@@ -199,7 +187,6 @@ public class ResearcherAdminService {
 
         return new ResearcherAdminResponse(
                 researcher.getChercheurId(),
-                researcher.getEmail(),
                 researcher.getName(),
                 researcher.getBiographie(),
                 domains,

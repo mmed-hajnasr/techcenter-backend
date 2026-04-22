@@ -24,9 +24,6 @@ public class ChercheurEntity {
     @Column(name = "chercheur_id", nullable = false, updatable = false)
     private UUID chercheurId;
 
-    @Column(name = "email", nullable = false, unique = true, length = 255)
-    private String email;
-
     @Column(name = "name", nullable = false, length = 255)
     private String name;
 
@@ -49,14 +46,6 @@ public class ChercheurEntity {
 
     public UUID getChercheurId() {
         return chercheurId;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
     }
 
     public String getName() {

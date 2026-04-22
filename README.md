@@ -328,7 +328,6 @@ Example response:
 [
   {
     "researcherId": "6f5e2a0b-95b6-4306-b263-4d5f4f2f1ef7",
-    "email": "researcher@example.com",
     "name": "alice researcher",
     "biographie": "AI researcher",
     "domains": [
@@ -351,7 +350,6 @@ curl -s -X POST "http://localhost:8080/admin/researchers" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -d '{
     "name": "alice researcher",
-    "email": "researcher@example.com",
     "biographie": "AI researcher",
     "domainIds": [
       "57a070a0-8458-46ad-b6f6-f1c31dc7ec67"
@@ -388,7 +386,6 @@ curl -s -X PUT "http://localhost:8080/admin/researchers/$RESEARCHER_ID" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -d '{
     "name": "alice updated",
-    "email": "alice.updated@example.com",
     "biographie": "Updated bio",
     "domainIds": [
       "57a070a0-8458-46ad-b6f6-f1c31dc7ec67"
