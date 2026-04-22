@@ -17,11 +17,11 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-import com.isi.techcenter_backend.auth.entity.DomaineEntity;
-import com.isi.techcenter_backend.auth.entity.UserRole;
-import com.isi.techcenter_backend.auth.repository.ChercheurRepository;
-import com.isi.techcenter_backend.auth.repository.DomaineRepository;
-import com.isi.techcenter_backend.auth.repository.UserRepository;
+import com.isi.techcenter_backend.entity.DomaineEntity;
+import com.isi.techcenter_backend.entity.UserRole;
+import com.isi.techcenter_backend.repository.ChercheurRepository;
+import com.isi.techcenter_backend.repository.DomaineRepository;
+import com.isi.techcenter_backend.repository.UserRepository;
 
 @SpringBootTest
 @AutoConfigureMockMvc

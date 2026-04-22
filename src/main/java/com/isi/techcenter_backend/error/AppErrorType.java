@@ -1,0 +1,16 @@
+package com.isi.techcenter_backend.error;
+
+public enum AppErrorType {
+    INCORRECT_LOGIN,
+    NOT_LOGGED_IN,
+    UNAUTHORIZED,
+    INVALID_EMAIL,
+    INVALID_USERNAME,
+    INVALID_PASSWORD,
+    INVALID_ROLE,
+    USER_NOT_FOUND,
+    RESEARCHER_NOT_FOUND,
+    DOMAIN_NOT_FOUND,
+    DOMAIN_NAME_ALREADY_EXISTS,
+    INVALID_DOMAIN_NAME
+}
