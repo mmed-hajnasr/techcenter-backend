@@ -30,8 +30,4 @@ public interface ChercheurRepository extends JpaRepository<ChercheurEntity, UUID
                         where c.chercheurId = :chercheurId
                         """)
         Optional<ChercheurEntity> findByIdWithSpecialisations(@Param("chercheurId") UUID chercheurId);
-
-        boolean existsByEmailIgnoreCase(String email);
-
-        boolean existsByEmailIgnoreCaseAndChercheurIdNot(String email, UUID chercheurId);
 }

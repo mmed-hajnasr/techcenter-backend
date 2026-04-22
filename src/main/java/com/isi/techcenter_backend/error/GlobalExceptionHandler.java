@@ -42,9 +42,9 @@ public class GlobalExceptionHandler {
     private HttpStatus mapAuthStatus(AppErrorType errorType) {
         return switch (errorType) {
             case INCORRECT_LOGIN, NOT_LOGGED_IN, UNAUTHORIZED -> HttpStatus.UNAUTHORIZED;
-            case DOMAIN_NOT_FOUND, USER_NOT_FOUND, RESEARCHER_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case DOMAIN_NOT_FOUND, USER_NOT_FOUND, RESEARCHER_NOT_FOUND, PUBLICATION_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case INVALID_EMAIL, INVALID_USERNAME, INVALID_PASSWORD, INVALID_ROLE, DOMAIN_NAME_ALREADY_EXISTS,
-                    INVALID_DOMAIN_NAME ->
+                    INVALID_DOMAIN_NAME, PUBLICATION_DOI_ALREADY_EXISTS, INVALID_PUBLICATION_TITLE ->
                 HttpStatus.BAD_REQUEST;
         };
     }
@@ -58,6 +58,9 @@ public class GlobalExceptionHandler {
         }
         if ("name".equals(fieldName)) {
             return AppErrorType.INVALID_DOMAIN_NAME;
+        }
+        if ("titre".equals(fieldName)) {
+            return AppErrorType.INVALID_PUBLICATION_TITLE;
         }
         if ("role".equals(fieldName)) {
             return AppErrorType.INVALID_ROLE;
