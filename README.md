@@ -422,37 +422,6 @@ curl -i -X DELETE "http://localhost:8080/admin/researchers/$RESEARCHER_ID" \
 
 Expected status: `204 No Content`
 
----
-
-## Full cURL Flow (copy/paste)
-
-```bash
-BASE_URL="http://localhost:8080"
-
-# 1) Signup
-SIGNUP_RESPONSE=$(curl -s -X POST "$BASE_URL/signup" \
-  -H "Content-Type: application/json" \
-  -d '{"email":"alice@example.com","username":"alice","password":"StrongPass123!"}')
-
-echo "$SIGNUP_RESPONSE"
-
-# 2) Login
-LOGIN_RESPONSE=$(curl -s -X POST "$BASE_URL/login" \
-  -H "Content-Type: application/json" \
-  -d '{"identifier":"alice@example.com","password":"StrongPass123!"}')
-
-echo "$LOGIN_RESPONSE"
-
-# 3) Extract token (requires jq)
-TOKEN=$(echo "$LOGIN_RESPONSE" | jq -r '.accessToken')
-
-# 4) Call protected route
-curl -s "$BASE_URL/user/me" \
-  -H "Authorization: Bearer $TOKEN"
-```
-
----
-
 ## Error Responses
 
 Common format:
