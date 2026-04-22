@@ -11,7 +11,6 @@ import org.hibernate.annotations.UuidGenerator;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 
@@ -30,8 +29,7 @@ public class ChercheurEntity {
     @Column(name = "biographie", length = 4000)
     private String biographie;
 
-    @Lob
-    @Column(name = "photo")
+    @Column(name = "photo", columnDefinition = "BYTEA")
     private byte[] photo;
 
     @CreationTimestamp

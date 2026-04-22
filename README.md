@@ -419,6 +419,206 @@ curl -i -X DELETE "http://localhost:8080/admin/researchers/$RESEARCHER_ID" \
 
 Expected status: `204 No Content`
 
+---
+
+### Admin Publications (ADMIN only)
+
+All routes below require a JWT for a user with role `ADMIN`.
+
+`GET /admin/publications`
+
+```bash
+curl -s http://localhost:8080/admin/publications \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+Example response:
+
+```json
+[
+  {
+    "publicationId": "f1c3d6a8-6c43-4b4e-b4c2-8e0c2c4f09f2",
+    "titre": "AI for Climate Modeling",
+    "resume": "A survey of ML methods for climate simulations.",
+    "doi": "10.1000/xyz123",
+    "datePublication": "2026-04-22T10:00:00Z",
+    "authors": [
+      {
+        "researcherId": "6f5e2a0b-95b6-4306-b263-4d5f4f2f1ef7",
+        "name": "alice researcher"
+      }
+    ]
+  }
+]
+```
+
+`POST /admin/publications`
+
+```bash
+curl -s -X POST "http://localhost:8080/admin/publications" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d '{
+    "titre": "AI for Climate Modeling",
+    "resume": "A survey of ML methods for climate simulations.",
+    "doi": "10.1000/xyz123",
+    "datePublication": "2026-04-22T10:00:00Z",
+    "researcherIds": [
+      "6f5e2a0b-95b6-4306-b263-4d5f4f2f1ef7"
+    ]
+  }'
+```
+
+Example response (`201 Created`):
+
+```json
+{
+  "publicationId": "f1c3d6a8-6c43-4b4e-b4c2-8e0c2c4f09f2",
+  "titre": "AI for Climate Modeling",
+  "resume": "A survey of ML methods for climate simulations.",
+  "doi": "10.1000/xyz123",
+  "datePublication": "2026-04-22T10:00:00Z",
+  "authors": [
+    {
+      "researcherId": "6f5e2a0b-95b6-4306-b263-4d5f4f2f1ef7",
+      "name": "alice researcher"
+    }
+  ]
+}
+```
+
+`PUT /admin/publications/{publicationId}`
+
+```bash
+PUBLICATION_ID="f1c3d6a8-6c43-4b4e-b4c2-8e0c2c4f09f2"
+
+curl -s -X PUT "http://localhost:8080/admin/publications/$PUBLICATION_ID" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d '{
+    "titre": "AI for Climate Forecasting",
+    "resume": "Updated abstract.",
+    "doi": "10.1000/xyz123",
+    "datePublication": "2026-04-23T10:00:00Z",
+    "researcherIds": [
+      "6f5e2a0b-95b6-4306-b263-4d5f4f2f1ef7"
+    ]
+  }'
+```
+
+Request payload for create/update:
+
+```json
+{
+  "titre": "string (required, 2..255 chars)",
+  "resume": "string (optional, max 4000 chars)",
+  "doi": "string (optional, max 255 chars, unique case-insensitive)",
+  "datePublication": "ISO-8601 datetime with offset (optional)",
+  "researcherIds": ["uuid", "..."]
+}
+```
+
+Notes:
+
+- `researcherIds` is required (cannot be null).
+- If `researcherIds` is an empty array, the publication is saved with no authors.
+- If one or more `researcherIds` do not exist, request fails with `RESEARCHER_NOT_FOUND`.
+
+`DELETE /admin/publications/{publicationId}`
+
+```bash
+curl -i -X DELETE "http://localhost:8080/admin/publications/$PUBLICATION_ID" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+Expected status: `204 No Content`
+
+---
+
+### Moderator Actualites (MODERATOR/ADMIN only)
+
+All routes below require a JWT for a user with role `MODERATOR` (or `ADMIN`, per security rules).
+
+`POST /moderator/actualites`
+
+```bash
+MODERATOR_TOKEN="<paste-moderator-access-token-here>"
+
+curl -s -X POST "http://localhost:8080/moderator/actualites" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $MODERATOR_TOKEN" \
+  -d '{
+    "titre": "Nouvelle annonce de recherche",
+    "contenu": "Appel à candidatures pour un nouveau projet IA.",
+    "datePublication": "2026-04-22T10:00:00Z",
+    "estEnAvant": true
+  }'
+```
+
+Example response (`201 Created`):
+
+```json
+{
+  "actualiteId": "64e13d8d-4a5f-4a50-b2d7-fd787f7f2473",
+  "titre": "Nouvelle annonce de recherche",
+  "contenu": "Appel à candidatures pour un nouveau projet IA.",
+  "datePublication": "2026-04-22T10:00:00Z",
+  "estEnAvant": true,
+  "moderateurId": "f2b4ad2e-ef2a-4eb0-96cf-b6ae4ebfd0ec"
+}
+```
+
+`PUT /moderator/actualites/{actualiteId}`
+
+```bash
+ACTUALITE_ID="64e13d8d-4a5f-4a50-b2d7-fd787f7f2473"
+
+curl -s -X PUT "http://localhost:8080/moderator/actualites/$ACTUALITE_ID" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $MODERATOR_TOKEN" \
+  -d '{
+    "titre": "Annonce mise à jour",
+    "contenu": "Contenu mis a jour de cette actualite.",
+    "datePublication": "2026-04-23T09:30:00Z",
+    "estEnAvant": false
+  }'
+```
+
+Example response:
+
+```json
+{
+  "actualiteId": "64e13d8d-4a5f-4a50-b2d7-fd787f7f2473",
+  "titre": "Annonce mise à jour",
+  "contenu": "Contenu mis à jour de l'actualité.",
+  "datePublication": "2026-04-23T09:30:00Z",
+  "estEnAvant": false,
+  "moderateurId": "f2b4ad2e-ef2a-4eb0-96cf-b6ae4ebfd0ec"
+}
+```
+
+`DELETE /moderator/actualites/{actualiteId}`
+
+```bash
+curl -i -X DELETE "http://localhost:8080/moderator/actualites/$ACTUALITE_ID" \
+  -H "Authorization: Bearer $MODERATOR_TOKEN"
+```
+
+Expected status: `204 No Content`
+
+Request payload for create/update:
+
+```json
+{
+  "titre": "string (required, 2..255 chars)",
+  "contenu": "string (required, 1..4000 chars)",
+  "datePublication": "ISO-8601 datetime with offset (optional)",
+  "estEnAvant": "boolean (optional, defaults to false on create)"
+}
+```
+
+---
+
 ## Error Responses
 
 Common format:
@@ -449,6 +649,20 @@ Admin user/researcher errors may include:
 - `USER_NOT_FOUND`
 - `RESEARCHER_NOT_FOUND`
 - `INVALID_ROLE`
+
+Admin publication errors may include:
+
+- `PUBLICATION_NOT_FOUND`
+- `PUBLICATION_DOI_ALREADY_EXISTS`
+- `INVALID_PUBLICATION_TITLE`
+- `RESEARCHER_NOT_FOUND`
+
+Moderator actualite errors may include:
+
+- `ACTUALITE_NOT_FOUND`
+- `MODERATOR_NOT_FOUND`
+- `INVALID_ACTUALITE_TITLE`
+- `INVALID_ACTUALITE_CONTENT`
 
 Admin routes may also return `403 FORBIDDEN` when a non-admin token is used.
 
