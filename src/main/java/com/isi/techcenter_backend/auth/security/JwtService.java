@@ -10,6 +10,8 @@ import javax.crypto.SecretKey;
 
 import org.springframework.stereotype.Service;
 
+import com.isi.techcenter_backend.auth.entity.UserRole;
+
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -36,12 +38,13 @@ public class JwtService {
         this.issuer = issuer;
     }
 
-    public String generateAccessToken(UUID userId) {
+    public String generateAccessToken(UUID userId, UserRole role) {
         Instant now = Instant.now();
         Instant expiration = now.plusSeconds(expirationSeconds);
 
         return Jwts.builder()
                 .subject(userId.toString())
+                .claim("role", role.name())
                 .issuer(issuer)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiration))
@@ -49,7 +52,7 @@ public class JwtService {
                 .compact();
     }
 
-    public Optional<UUID> extractUserId(String token) {
+    public Optional<AuthenticatedUser> extractAuthenticatedUser(String token) {
         try {
             Claims claims = Jwts.parser()
                     .verifyWith(signingKey)
@@ -60,7 +63,15 @@ public class JwtService {
             if (claims.getSubject() == null) {
                 return Optional.empty();
             }
-            return Optional.of(UUID.fromString(claims.getSubject()));
+
+            UUID userId = UUID.fromString(claims.getSubject());
+            String roleValue = claims.get("role", String.class);
+            if (roleValue == null) {
+                return Optional.empty();
+            }
+            UserRole role = UserRole.valueOf(roleValue);
+
+            return Optional.of(new AuthenticatedUser(userId, role));
         } catch (JwtException | IllegalArgumentException exception) {
             return Optional.empty();
         }
@@ -68,5 +79,8 @@ public class JwtService {
 
     public long getExpirationSeconds() {
         return expirationSeconds;
+    }
+
+    public record AuthenticatedUser(UUID userId, UserRole role) {
     }
 }

@@ -22,6 +22,7 @@ classDiagram
 
     class Chercheur {
         +String id
+        +String name
         +String biographie
         +String photo
         +rechercherParDomaine()
@@ -73,7 +74,7 @@ classDiagram
     }
 
     User <|-- Moderateur
-    User <|-- Chercheur
+    User <|-- Admin
 
     Moderateur "1" -- "0..*" Actualite 
 

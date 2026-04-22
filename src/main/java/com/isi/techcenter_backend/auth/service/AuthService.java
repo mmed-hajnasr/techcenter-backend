@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.isi.techcenter_backend.auth.entity.UserEntity;
+import com.isi.techcenter_backend.auth.entity.UserRole;
 import com.isi.techcenter_backend.auth.error.AppErrorType;
 import com.isi.techcenter_backend.auth.error.AuthException;
 import com.isi.techcenter_backend.auth.model.AuthResponse;
@@ -45,9 +46,10 @@ public class AuthService {
         user.setEmail(normalizedEmail);
         user.setUsername(normalizedUsername);
         user.setPasswordHash(passwordService.hashPassword(request.password()));
+        user.setRole(UserRole.USER);
 
         UserEntity savedUser = userRepository.save(user);
-        String token = jwtService.generateAccessToken(savedUser.getUserId());
+        String token = jwtService.generateAccessToken(savedUser.getUserId(), savedUser.getRole());
 
         return new AuthResponse(
                 savedUser.getUserId(),
@@ -75,7 +77,7 @@ public class AuthService {
             throw new AuthException(AppErrorType.INCORRECT_LOGIN, "Incorrect credentials");
         }
 
-        String token = jwtService.generateAccessToken(existingUser.getUserId());
+        String token = jwtService.generateAccessToken(existingUser.getUserId(), existingUser.getRole());
 
         return new AuthResponse(
                 existingUser.getUserId(),

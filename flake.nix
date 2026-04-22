@@ -23,6 +23,7 @@
       devShells = forEachSupportedSystem ({ pkgs }: {
         default = pkgs.mkShell {
           packages = with pkgs; [
+            postgresql
             gcc
             gradle
             jdk

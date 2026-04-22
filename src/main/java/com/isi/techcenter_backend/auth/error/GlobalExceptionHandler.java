@@ -26,7 +26,7 @@ public class GlobalExceptionHandler {
         FieldError fieldError = exception.getBindingResult().getFieldError();
         AppErrorType errorType = mapValidationError(fieldError == null ? null : fieldError.getField());
         return ResponseEntity.badRequest().body(new ApiErrorResponse(
-            errorType.name(),
+                errorType.name(),
                 "Invalid request payload",
                 OffsetDateTime.now()));
     }
@@ -42,7 +42,10 @@ public class GlobalExceptionHandler {
     private HttpStatus mapAuthStatus(AppErrorType errorType) {
         return switch (errorType) {
             case INCORRECT_LOGIN, NOT_LOGGED_IN, UNAUTHORIZED -> HttpStatus.UNAUTHORIZED;
-            case INVALID_EMAIL, INVALID_USERNAME, INVALID_PASSWORD -> HttpStatus.BAD_REQUEST;
+            case DOMAIN_NOT_FOUND, USER_NOT_FOUND, RESEARCHER_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case INVALID_EMAIL, INVALID_USERNAME, INVALID_PASSWORD, INVALID_ROLE, DOMAIN_NAME_ALREADY_EXISTS,
+                    INVALID_DOMAIN_NAME ->
+                HttpStatus.BAD_REQUEST;
         };
     }
 
@@ -52,6 +55,12 @@ public class GlobalExceptionHandler {
         }
         if ("username".equals(fieldName)) {
             return AppErrorType.INVALID_USERNAME;
+        }
+        if ("name".equals(fieldName)) {
+            return AppErrorType.INVALID_DOMAIN_NAME;
+        }
+        if ("role".equals(fieldName)) {
+            return AppErrorType.INVALID_ROLE;
         }
         return AppErrorType.INVALID_PASSWORD;
     }
