@@ -15,6 +15,7 @@ import com.isi.techcenter_backend.model.AuthResponse;
 import com.isi.techcenter_backend.model.LoginRequest;
 import com.isi.techcenter_backend.model.SignupRequest;
 import com.isi.techcenter_backend.service.AuthService;
+import com.isi.techcenter_backend.tracing.EndpointTraceSupport;
 
 import jakarta.validation.Valid;
 
@@ -23,32 +24,49 @@ import jakarta.validation.Valid;
 public class AuthController {
 
     private final AuthService authService;
+    private final EndpointTraceSupport endpointTraceSupport;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, EndpointTraceSupport endpointTraceSupport) {
         this.authService = authService;
+        this.endpointTraceSupport = endpointTraceSupport;
     }
 
     @PostMapping("/signup")
     public ResponseEntity<AuthResponse> signup(@Valid @RequestBody SignupRequest request) {
-        return ResponseEntity.ok(authService.signup(request));
+        return endpointTraceSupport.inSpan(
+                "auth.signup",
+                "/signup",
+                "signup",
+                () -> ResponseEntity.ok(authService.signup(request)));
     }
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-        return ResponseEntity.ok(authService.login(request));
+        return endpointTraceSupport.inSpan(
+                "auth.login",
+                "/login",
+                "login",
+                () -> ResponseEntity.ok(authService.login(request)));
     }
 
     @GetMapping("/user/me")
     public ResponseEntity<AuthResponse> me(Authentication authentication) {
         UUID userId = UUID.fromString(authentication.getName());
-        UserEntity user = authService.getUserById(userId);
-
-        return ResponseEntity.ok(new AuthResponse(
-                user.getUserId(),
-                user.getEmail(),
-                user.getUsername(),
-                user.getCreatedAt(),
-                null,
-                0));
+        return endpointTraceSupport.inSpan(
+                "auth.me",
+                "/user/me",
+                "get-current-user",
+                () -> {
+                    UserEntity user = authService.getUserById(userId);
+                    return ResponseEntity.ok(new AuthResponse(
+                            user.getUserId(),
+                            user.getEmail(),
+                            user.getUsername(),
+                            user.getCreatedAt(),
+                            null,
+                            0));
+                },
+                "userId",
+                userId.toString());
     }
 }

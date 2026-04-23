@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.isi.techcenter_backend.model.PublicationAdminResponse;
 import com.isi.techcenter_backend.model.PublicationUpsertRequest;
 import com.isi.techcenter_backend.service.PublicationAdminService;
+import com.isi.techcenter_backend.tracing.EndpointTraceSupport;
 
 import jakarta.validation.Valid;
 
@@ -27,32 +28,59 @@ import jakarta.validation.Valid;
 public class PublicationAdminController {
 
     private final PublicationAdminService publicationAdminService;
+    private final EndpointTraceSupport endpointTraceSupport;
 
-    public PublicationAdminController(PublicationAdminService publicationAdminService) {
+    public PublicationAdminController(
+            PublicationAdminService publicationAdminService,
+            EndpointTraceSupport endpointTraceSupport) {
         this.publicationAdminService = publicationAdminService;
+        this.endpointTraceSupport = endpointTraceSupport;
     }
 
     @GetMapping
     public ResponseEntity<List<PublicationAdminResponse>> listPublications() {
-        return ResponseEntity.ok(publicationAdminService.listPublications());
+        return endpointTraceSupport.inSpan(
+                "admin.publications.list",
+                "/admin/publications",
+                "list-publications",
+                () -> ResponseEntity.ok(publicationAdminService.listPublications()));
     }
 
     @PostMapping
     public ResponseEntity<PublicationAdminResponse> createPublication(
             @Valid @RequestBody PublicationUpsertRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(publicationAdminService.createPublication(request));
+        return endpointTraceSupport.inSpan(
+                "admin.publications.create",
+                "/admin/publications",
+                "create-publication",
+                () -> ResponseEntity.status(HttpStatus.CREATED)
+                        .body(publicationAdminService.createPublication(request)));
     }
 
     @PutMapping("/{publicationId}")
     public ResponseEntity<PublicationAdminResponse> updatePublication(
             @PathVariable UUID publicationId,
             @Valid @RequestBody PublicationUpsertRequest request) {
-        return ResponseEntity.ok(publicationAdminService.updatePublication(publicationId, request));
+        return endpointTraceSupport.inSpan(
+                "admin.publications.update",
+                "/admin/publications/{publicationId}",
+                "update-publication",
+                () -> ResponseEntity.ok(publicationAdminService.updatePublication(publicationId, request)),
+                "publicationId",
+                publicationId.toString());
     }
 
     @DeleteMapping("/{publicationId}")
     public ResponseEntity<Void> deletePublication(@PathVariable UUID publicationId) {
-        publicationAdminService.deletePublication(publicationId);
-        return ResponseEntity.noContent().build();
+        return endpointTraceSupport.inSpan(
+                "admin.publications.delete",
+                "/admin/publications/{publicationId}",
+                "delete-publication",
+                () -> {
+                    publicationAdminService.deletePublication(publicationId);
+                    return ResponseEntity.noContent().build();
+                },
+                "publicationId",
+                publicationId.toString());
     }
 }

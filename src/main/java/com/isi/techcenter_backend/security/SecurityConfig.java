@@ -16,7 +16,6 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableWebSecurity
 public class SecurityConfig {
 
-
   @Bean
   public UserDetailsService userDetailsService() {
     return new InMemoryUserDetailsManager();
@@ -36,8 +35,7 @@ public class SecurityConfig {
             .requestMatchers("/health", "/signup", "/login").permitAll()
             .requestMatchers("/admin/**").hasRole("ADMIN")
             .requestMatchers("/moderator/**").hasAnyRole("ADMIN", "MODERATOR")
-            .requestMatchers("/user/**")
-            .hasAnyRole("ADMIN", "MODERATOR", "USER")
+            .requestMatchers("/user/**").hasAnyRole("ADMIN", "MODERATOR", "USER")
             .anyRequest().authenticated())
         .exceptionHandling(exception -> exception
             .authenticationEntryPoint((request, response, authException) -> {

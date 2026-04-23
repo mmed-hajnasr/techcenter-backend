@@ -5,7 +5,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,22 +33,29 @@ public class PublicationAdminService {
     private final PublicationRepository publicationRepository;
     private final ChercheurRepository chercheurRepository;
     private final EcritParRepository ecritParRepository;
+    private final Tracer tracer;
 
     public PublicationAdminService(
             PublicationRepository publicationRepository,
             ChercheurRepository chercheurRepository,
-            EcritParRepository ecritParRepository) {
+            EcritParRepository ecritParRepository,
+            Tracer tracer) {
         this.publicationRepository = publicationRepository;
         this.chercheurRepository = chercheurRepository;
         this.ecritParRepository = ecritParRepository;
+        this.tracer = tracer;
     }
 
     @Transactional(readOnly = true)
     public List<PublicationAdminResponse> listPublications() {
-        return publicationRepository.findAllForAdmin()
-                .stream()
-                .map(this::toResponse)
-                .toList();
+        return inStep(
+                "admin.publications.db-list",
+                () -> publicationRepository.findAllForAdmin()
+                        .stream()
+                        .map(this::toResponse)
+                        .toList(),
+                "step",
+                "db-list-publications");
     }
 
     @Transactional
@@ -53,7 +63,14 @@ public class PublicationAdminService {
         String normalizedTitle = normalizeTitle(request.titre());
         String normalizedDoi = normalizeDoi(request.doi());
 
-        if (normalizedDoi != null && publicationRepository.existsByDoiIgnoreCase(normalizedDoi)) {
+        boolean doiExists = normalizedDoi != null && inStep(
+                "admin.publications.db-check-doi-exists",
+                () -> publicationRepository.existsByDoiIgnoreCase(normalizedDoi),
+                "step",
+                "db-check-doi-exists",
+                "doi",
+                normalizedDoi);
+        if (doiExists) {
             throw new AuthException(AppErrorType.PUBLICATION_DOI_ALREADY_EXISTS, "Publication DOI already exists");
         }
 
@@ -63,7 +80,13 @@ public class PublicationAdminService {
         publication.setDoi(normalizedDoi);
         publication.setDatePublication(request.datePublication());
 
-        PublicationEntity savedPublication = publicationRepository.save(publication);
+        PublicationEntity savedPublication = inStep(
+                "admin.publications.db-save",
+                () -> publicationRepository.save(publication),
+                "step",
+                "db-save-publication",
+                "title",
+                normalizedTitle);
         updatePublicationAuthors(savedPublication, request.researcherIds());
 
         return toResponse(findPublicationWithAuthors(savedPublication.getPublicationId()));
@@ -76,8 +99,18 @@ public class PublicationAdminService {
         String normalizedTitle = normalizeTitle(request.titre());
         String normalizedDoi = normalizeDoi(request.doi());
 
-        if (normalizedDoi != null
-                && publicationRepository.existsByDoiIgnoreCaseAndPublicationIdNot(normalizedDoi, publicationId)) {
+        boolean doiExists = normalizedDoi != null
+                && inStep(
+                        "admin.publications.db-check-doi-exists-for-update",
+                        () -> publicationRepository.existsByDoiIgnoreCaseAndPublicationIdNot(normalizedDoi,
+                                publicationId),
+                        "step",
+                        "db-check-doi-exists-for-update",
+                        "publicationId",
+                        publicationId.toString(),
+                        "doi",
+                        normalizedDoi);
+        if (doiExists) {
             throw new AuthException(AppErrorType.PUBLICATION_DOI_ALREADY_EXISTS, "Publication DOI already exists");
         }
 
@@ -85,7 +118,15 @@ public class PublicationAdminService {
         publication.setResume(normalizeResume(request.resume()));
         publication.setDoi(normalizedDoi);
         publication.setDatePublication(request.datePublication());
-        publicationRepository.save(publication);
+        inStep(
+                "admin.publications.db-save-update",
+                () -> publicationRepository.save(publication),
+                "step",
+                "db-save-update-publication",
+                "publicationId",
+                publicationId.toString(),
+                "title",
+                normalizedTitle);
 
         updatePublicationAuthors(publication, request.researcherIds());
 
@@ -95,24 +136,66 @@ public class PublicationAdminService {
     @Transactional
     public void deletePublication(UUID publicationId) {
         PublicationEntity publication = findPublicationWithAuthors(publicationId);
-        ecritParRepository.deleteByPublication_PublicationId(publicationId);
-        publicationRepository.delete(publication);
+        inStep(
+                "admin.publications.db-delete-authors",
+                () -> {
+                    ecritParRepository.deleteByPublication_PublicationId(publicationId);
+                    return null;
+                },
+                "step",
+                "db-delete-publication-authors",
+                "publicationId",
+                publicationId.toString());
+        inStep(
+                "admin.publications.db-delete",
+                () -> {
+                    publicationRepository.delete(publication);
+                    return null;
+                },
+                "step",
+                "db-delete-publication",
+                "publicationId",
+                publicationId.toString());
     }
 
     private PublicationEntity findPublicationWithAuthors(UUID publicationId) {
-        return publicationRepository.findByIdWithAuthors(publicationId)
-                .orElseThrow(() -> new AuthException(AppErrorType.PUBLICATION_NOT_FOUND, "Publication not found"));
+        return inStep(
+                "admin.publications.db-find-by-id-with-authors",
+                () -> publicationRepository.findByIdWithAuthors(publicationId)
+                        .orElseThrow(
+                                () -> new AuthException(AppErrorType.PUBLICATION_NOT_FOUND, "Publication not found")),
+                "step",
+                "db-find-publication-by-id-with-authors",
+                "publicationId",
+                publicationId.toString());
     }
 
     private void updatePublicationAuthors(PublicationEntity publication, List<UUID> researcherIds) {
         Set<UUID> uniqueResearcherIds = new LinkedHashSet<>(researcherIds);
-        List<ChercheurEntity> researchers = chercheurRepository.findAllById(uniqueResearcherIds);
+        List<ChercheurEntity> researchers = inStep(
+                "admin.publications.db-find-researchers-by-ids",
+                () -> chercheurRepository.findAllById(uniqueResearcherIds),
+                "step",
+                "db-find-researchers-by-ids",
+                "publicationId",
+                publication.getPublicationId().toString(),
+                "researcherCount",
+                Integer.toString(uniqueResearcherIds.size()));
 
         if (researchers.size() != uniqueResearcherIds.size()) {
             throw new AuthException(AppErrorType.RESEARCHER_NOT_FOUND, "One or more researchers were not found");
         }
 
-        ecritParRepository.deleteByPublication_PublicationId(publication.getPublicationId());
+        inStep(
+                "admin.publications.db-delete-authors",
+                () -> {
+                    ecritParRepository.deleteByPublication_PublicationId(publication.getPublicationId());
+                    return null;
+                },
+                "step",
+                "db-delete-publication-authors",
+                "publicationId",
+                publication.getPublicationId().toString());
 
         if (researchers.isEmpty()) {
             publication.setAuteurs(new ArrayList<>());
@@ -133,7 +216,15 @@ public class PublicationAdminService {
                 })
                 .toList();
 
-        ecritParRepository.saveAll(authors);
+        inStep(
+                "admin.publications.db-save-authors",
+                () -> ecritParRepository.saveAll(authors),
+                "step",
+                "db-save-publication-authors",
+                "publicationId",
+                publication.getPublicationId().toString(),
+                "authorCount",
+                Integer.toString(authors.size()));
         publication.setAuteurs(new ArrayList<>(authors));
     }
 
@@ -180,5 +271,29 @@ public class PublicationAdminService {
                 publication.getDoi(),
                 publication.getDatePublication(),
                 authors);
+    }
+
+    private <T> T inStep(String stepSpanName, Supplier<T> action, String... tagPairs) {
+        Span span = tracer.nextSpan().name(stepSpanName).start();
+        try (Tracer.SpanInScope ws = tracer.withSpan(span)) {
+            applyTags(span, tagPairs);
+            return action.get();
+        } finally {
+            span.end();
+        }
+    }
+
+    private void applyTags(Span span, String... tagPairs) {
+        if (tagPairs == null || tagPairs.length == 0) {
+            return;
+        }
+        for (int index = 0; index + 1 < tagPairs.length; index += 2) {
+            String key = tagPairs[index];
+            String value = tagPairs[index + 1];
+            if (key == null || value == null) {
+                continue;
+            }
+            span.tag(key, value);
+        }
     }
 }

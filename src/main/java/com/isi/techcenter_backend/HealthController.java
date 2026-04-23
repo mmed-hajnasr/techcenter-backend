@@ -2,28 +2,25 @@ package com.isi.techcenter_backend;
 
 import java.util.Map;
 
-import io.micrometer.tracing.Span;
-import io.micrometer.tracing.Tracer;
+import com.isi.techcenter_backend.tracing.EndpointTraceSupport;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class HealthController {
 
-    private final Tracer tracer;
+    private final EndpointTraceSupport endpointTraceSupport;
 
-    public HealthController(Tracer tracer) {
-        this.tracer = tracer;
+    public HealthController(EndpointTraceSupport endpointTraceSupport) {
+        this.endpointTraceSupport = endpointTraceSupport;
     }
 
     @GetMapping("/health")
     public Map<String, String> health() {
-        Span span = tracer.nextSpan().name("health.check").start();
-        try (Tracer.SpanInScope ws = tracer.withSpan(span)) {
-            span.tag("endpoint", "/health");
-            return Map.of("status", "UP");
-        } finally {
-            span.end();
-        }
+        return endpointTraceSupport.inSpan(
+                "health.check",
+                "/health",
+                "health-check",
+                () -> Map.of("status", "UP"));
     }
 }

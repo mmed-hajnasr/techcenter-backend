@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,8 @@ import com.isi.techcenter_backend.model.ResearcherUpdateRequest;
 import com.isi.techcenter_backend.repository.ChercheurRepository;
 import com.isi.techcenter_backend.repository.DomaineRepository;
 import com.isi.techcenter_backend.repository.SpecialiseDansRepository;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 
 @Service
 public class ResearcherAdminService {
@@ -31,21 +34,32 @@ public class ResearcherAdminService {
     private final ChercheurRepository chercheurRepository;
     private final DomaineRepository domaineRepository;
     private final SpecialiseDansRepository specialiseDansRepository;
+    private final Tracer tracer;
 
     public ResearcherAdminService(
             ChercheurRepository chercheurRepository,
             DomaineRepository domaineRepository,
-            SpecialiseDansRepository specialiseDansRepository) {
+            SpecialiseDansRepository specialiseDansRepository,
+            Tracer tracer) {
         this.chercheurRepository = chercheurRepository;
         this.domaineRepository = domaineRepository;
         this.specialiseDansRepository = specialiseDansRepository;
+        this.tracer = tracer;
     }
 
     @Transactional(readOnly = true)
     public List<ResearcherAdminResponse> listResearchers(String name, List<UUID> domainIds) {
         Set<UUID> requiredDomainIds = normalizeDomainIds(domainIds);
 
-        return chercheurRepository.searchForAdminByName(normalizeFilter(name))
+        return inStep(
+                "admin.researchers.db-search-by-name",
+                () -> chercheurRepository.searchForAdminByName(normalizeFilter(name)),
+                "step",
+                "search-by-name",
+                "hasNameFilter",
+                Boolean.toString(name != null && !name.isBlank()),
+                "domainIdsCount",
+                Integer.toString(requiredDomainIds.size()))
                 .stream()
                 .filter(researcher -> hasAllRequiredDomains(researcher, requiredDomainIds))
                 .map(this::toResponse)
@@ -63,7 +77,11 @@ public class ResearcherAdminService {
         ChercheurEntity researcher = new ChercheurEntity();
         researcher.setName(normalizedName);
         researcher.setBiographie(normalizeBiography(request.biographie()));
-        ChercheurEntity savedResearcher = chercheurRepository.save(researcher);
+        ChercheurEntity savedResearcher = inStep(
+                "admin.researchers.db-save",
+                () -> chercheurRepository.save(researcher),
+                "step",
+                "save-researcher");
 
         if (request.domainIds() != null) {
             updateResearcherDomains(savedResearcher, request.domainIds());
@@ -84,7 +102,13 @@ public class ResearcherAdminService {
 
         researcher.setName(normalizedName);
         researcher.setBiographie(normalizeBiography(request.biographie()));
-        chercheurRepository.save(researcher);
+        inStep(
+                "admin.researchers.db-save",
+                () -> chercheurRepository.save(researcher),
+                "step",
+                "save-researcher",
+                "researcherId",
+                researcherId.toString());
 
         if (request.domainIds() != null) {
             updateResearcherDomains(researcher, request.domainIds());
@@ -96,19 +120,52 @@ public class ResearcherAdminService {
     @Transactional
     public void deleteResearcher(UUID researcherId) {
         ChercheurEntity researcher = findResearcherWithSpecialisations(researcherId);
-        specialiseDansRepository.deleteByChercheur_ChercheurId(researcherId);
-        chercheurRepository.delete(researcher);
+        inStep(
+                "admin.researchers.db-delete-specialisations",
+                () -> {
+                    specialiseDansRepository.deleteByChercheur_ChercheurId(researcherId);
+                    return null;
+                },
+                "step",
+                "delete-specialisations",
+                "researcherId",
+                researcherId.toString());
+        inStep(
+                "admin.researchers.db-delete-researcher",
+                () -> {
+                    chercheurRepository.delete(researcher);
+                    return null;
+                },
+                "step",
+                "delete-researcher",
+                "researcherId",
+                researcherId.toString());
     }
 
     private void updateResearcherDomains(ChercheurEntity researcher, List<UUID> domainIds) {
         Set<UUID> uniqueDomainIds = new LinkedHashSet<>(domainIds);
-        List<DomaineEntity> domains = domaineRepository.findAllById(uniqueDomainIds);
+        List<DomaineEntity> domains = inStep(
+                "admin.researchers.db-find-domains-by-id",
+                () -> domaineRepository.findAllById(uniqueDomainIds),
+                "step",
+                "find-domains-by-id",
+                "domainIdsCount",
+                Integer.toString(uniqueDomainIds.size()));
 
         if (domains.size() != uniqueDomainIds.size()) {
             throw new AuthException(AppErrorType.DOMAIN_NOT_FOUND, "One or more domains were not found");
         }
 
-        specialiseDansRepository.deleteByChercheur_ChercheurId(researcher.getChercheurId());
+        inStep(
+                "admin.researchers.db-delete-specialisations",
+                () -> {
+                    specialiseDansRepository.deleteByChercheur_ChercheurId(researcher.getChercheurId());
+                    return null;
+                },
+                "step",
+                "delete-specialisations",
+                "researcherId",
+                researcher.getChercheurId().toString());
 
         if (domains.isEmpty()) {
             researcher.setSpecialisations(new ArrayList<>());
@@ -129,13 +186,28 @@ public class ResearcherAdminService {
                 })
                 .toList();
 
-        specialiseDansRepository.saveAll(specialisations);
-        researcher.setSpecialisations(new ArrayList<>(specialisations));
+        List<SpecialiseDansEntity> savedSpecialisations = inStep(
+                "admin.researchers.db-save-specialisations",
+                () -> specialiseDansRepository.saveAll(specialisations),
+                "step",
+                "save-specialisations",
+                "researcherId",
+                researcher.getChercheurId().toString(),
+                "domainIdsCount",
+                Integer.toString(specialisations.size()));
+        researcher.setSpecialisations(new ArrayList<>(savedSpecialisations));
     }
 
     private ChercheurEntity findResearcherWithSpecialisations(UUID researcherId) {
-        return chercheurRepository.findByIdWithSpecialisations(researcherId)
-                .orElseThrow(() -> new AuthException(AppErrorType.RESEARCHER_NOT_FOUND, "Researcher not found"));
+        return inStep(
+                "admin.researchers.db-find-with-specialisations",
+                () -> chercheurRepository.findByIdWithSpecialisations(researcherId)
+                        .orElseThrow(
+                                () -> new AuthException(AppErrorType.RESEARCHER_NOT_FOUND, "Researcher not found")),
+                "step",
+                "find-researcher-with-specialisations",
+                "researcherId",
+                researcherId.toString());
     }
 
     private String normalizeFilter(String value) {
@@ -191,5 +263,29 @@ public class ResearcherAdminService {
                 researcher.getBiographie(),
                 domains,
                 researcher.getCreatedAt());
+    }
+
+    private <T> T inStep(String stepSpanName, Supplier<T> action, String... tagPairs) {
+        Span span = tracer.nextSpan().name(stepSpanName).start();
+        try (Tracer.SpanInScope ws = tracer.withSpan(span)) {
+            applyTags(span, tagPairs);
+            return action.get();
+        } finally {
+            span.end();
+        }
+    }
+
+    private void applyTags(Span span, String... tagPairs) {
+        if (tagPairs == null || tagPairs.length == 0) {
+            return;
+        }
+        for (int index = 0; index + 1 < tagPairs.length; index += 2) {
+            String key = tagPairs[index];
+            String value = tagPairs[index + 1];
+            if (key == null || value == null) {
+                continue;
+            }
+            span.tag(key, value);
+        }
     }
 }
