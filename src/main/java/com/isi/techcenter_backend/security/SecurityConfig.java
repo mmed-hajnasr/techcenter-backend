@@ -2,6 +2,7 @@ package com.isi.techcenter_backend.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -33,6 +34,8 @@ public class SecurityConfig {
             .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(auth -> auth
             .requestMatchers("/health", "/signup", "/login").permitAll()
+            .requestMatchers(HttpMethod.GET, "/admin/domains/**", "/admin/researchers/**", "/admin/publications/**")
+            .hasAnyRole("ADMIN", "MODERATOR", "USER")
             .requestMatchers("/admin/**").hasRole("ADMIN")
             .requestMatchers("/moderator/**").hasAnyRole("ADMIN", "MODERATOR")
             .requestMatchers("/user/**").hasAnyRole("ADMIN", "MODERATOR", "USER")

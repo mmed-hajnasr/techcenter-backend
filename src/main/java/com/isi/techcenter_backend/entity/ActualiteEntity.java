@@ -36,7 +36,7 @@ public class ActualiteEntity {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "moderateur_id", nullable = false)
-    private ModerateurEntity moderateur;
+    private UserEntity moderateur;
 
     public UUID getActualiteId() {
         return actualiteId;
@@ -74,11 +74,11 @@ public class ActualiteEntity {
         this.estEnAvant = estEnAvant;
     }
 
-    public ModerateurEntity getModerateur() {
+    public UserEntity getModerateur() {
         return moderateur;
     }
 
-    public void setModerateur(ModerateurEntity moderateur) {
+    public void setModerateur(UserEntity moderateur) {
         this.moderateur = moderateur;
     }
 }

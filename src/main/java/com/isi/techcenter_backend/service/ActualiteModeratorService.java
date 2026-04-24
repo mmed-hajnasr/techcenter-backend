@@ -10,37 +10,38 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.isi.techcenter_backend.entity.ActualiteEntity;
-import com.isi.techcenter_backend.entity.ModerateurEntity;
+import com.isi.techcenter_backend.entity.UserEntity;
+import com.isi.techcenter_backend.entity.UserRole;
 import com.isi.techcenter_backend.error.AppErrorType;
 import com.isi.techcenter_backend.error.AuthException;
 import com.isi.techcenter_backend.model.ActualiteModeratorResponse;
 import com.isi.techcenter_backend.model.ActualiteUpsertRequest;
 import com.isi.techcenter_backend.repository.ActualiteRepository;
-import com.isi.techcenter_backend.repository.ModerateurRepository;
+import com.isi.techcenter_backend.repository.UserRepository;
 
 @Service
 public class ActualiteModeratorService {
 
     private final ActualiteRepository actualiteRepository;
-    private final ModerateurRepository moderateurRepository;
+    private final UserRepository userRepository;
     private final Tracer tracer;
 
     public ActualiteModeratorService(
             ActualiteRepository actualiteRepository,
-            ModerateurRepository moderateurRepository,
+            UserRepository userRepository,
             Tracer tracer) {
         this.actualiteRepository = actualiteRepository;
-        this.moderateurRepository = moderateurRepository;
+        this.userRepository = userRepository;
         this.tracer = tracer;
     }
 
     @Transactional
     public ActualiteModeratorResponse createActualite(UUID moderatorId, ActualiteUpsertRequest request) {
-        ModerateurEntity moderator = inStep(
-                "moderator.actualites.create.db-find-moderator-by-id",
-                () -> findModeratorById(moderatorId),
+        UserEntity moderator = inStep(
+                "moderator.actualites.create.db-find-user-by-id",
+                () -> findAuthorizedModeratorById(moderatorId),
                 "step",
-                "find-moderator-by-id",
+                "find-user-by-id",
                 "moderatorId",
                 moderatorId.toString());
 
@@ -167,9 +168,13 @@ public class ActualiteModeratorService {
                 actualiteId.toString());
     }
 
-    private ModerateurEntity findModeratorById(UUID moderatorId) {
-        return moderateurRepository.findById(moderatorId)
+    private UserEntity findAuthorizedModeratorById(UUID moderatorId) {
+        UserEntity user = userRepository.findById(moderatorId)
                 .orElseThrow(() -> new AuthException(AppErrorType.MODERATOR_NOT_FOUND, "Moderator not found"));
+        if (user.getRole() != UserRole.MODERATOR && user.getRole() != UserRole.ADMIN) {
+            throw new AuthException(AppErrorType.MODERATOR_NOT_FOUND, "Moderator not found");
+        }
+        return user;
     }
 
     private ActualiteEntity findActualiteById(UUID actualiteId) {

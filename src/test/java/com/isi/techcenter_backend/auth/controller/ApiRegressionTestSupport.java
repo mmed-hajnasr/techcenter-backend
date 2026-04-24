@@ -12,7 +12,6 @@ import org.springframework.boot.json.JsonParserFactory;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -32,9 +31,6 @@ abstract class ApiRegressionTestSupport {
 
     @Autowired
     protected UserRepository userRepository;
-
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
 
     protected ResultActions getWithToken(String path, String token) throws Exception {
         MockHttpServletRequestBuilder requestBuilder = get(path);
@@ -103,15 +99,7 @@ abstract class ApiRegressionTestSupport {
     }
 
     protected void ensureModeratorProfileForEmail(String email) {
-        var user = userRepository.findByEmailIgnoreCase(email).orElseThrow();
-        Integer count = jdbcTemplate.queryForObject(
-                "select count(*) from moderateurs where user_id = ?",
-                Integer.class,
-                user.getUserId());
-        if (count != null && count > 0) {
-            return;
-        }
-        jdbcTemplate.update("insert into moderateurs(user_id) values (?)", user.getUserId());
+        userRepository.findByEmailIgnoreCase(email).orElseThrow();
     }
 
     protected String loginAndGetToken(String identifier, String password) throws Exception {

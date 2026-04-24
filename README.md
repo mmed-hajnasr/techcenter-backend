@@ -11,6 +11,7 @@ Spring Boot backend with PostgreSQL, Hibernate/JPA, JWT auth, and Argon2 passwor
 - JWT-first authentication.
 - User roles: `ADMIN`, `MODERATOR`, `USER`.
 - Public endpoints: `POST /signup`, `POST /login`, `GET /health`.
+- Authenticated `USER` can access read-only `GET` for `actualites`, `domains`, `researchers`, and `publications`.
 - Protected endpoint: `GET /user/me`.
 - Send JWT in header: `Authorization: Bearer <token>`.
 
@@ -156,17 +157,45 @@ Example response:
 
 ---
 
-### Admin Domains (ADMIN only)
+### User Actualites
 
-All routes below require a JWT for a user with role `ADMIN`.
+`GET /user/actualites` (requires JWT)
 
-`GET /admin/domains`
+Returns all actualites ordered by `estEnAvant` (featured first), then by `datePublication` descending.
 
 ```bash
-ADMIN_TOKEN="<paste-admin-access-token-here>"
+TOKEN="<paste-access-token-here>"
+
+curl -s http://localhost:8080/user/actualites \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Example response:
+
+```json
+[
+  {
+    "actualiteId": "64e13d8d-4a5f-4a50-b2d7-fd787f7f2473",
+    "titre": "Nouvelle annonce de recherche",
+    "contenu": "Appel à candidatures pour un nouveau projet IA.",
+    "datePublication": "2026-04-22T10:00:00Z",
+    "estEnAvant": true,
+    "moderateurId": "f2b4ad2e-ef2a-4eb0-96cf-b6ae4ebfd0ec"
+  }
+]
+```
+
+---
+
+### Domains
+
+`GET /admin/domains` (requires JWT: `USER` / `MODERATOR` / `ADMIN`)
+
+```bash
+TOKEN="<paste-access-token-here>"
 
 curl -s http://localhost:8080/admin/domains \
-  -H "Authorization: Bearer $ADMIN_TOKEN"
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 Example response:
@@ -182,6 +211,8 @@ Example response:
 ```
 
 `POST /admin/domains`
+
+Requires JWT for role `ADMIN`.
 
 ```bash
 curl -s -X POST http://localhost:8080/admin/domains \
@@ -204,6 +235,8 @@ Example response (`201 Created`):
 ```
 
 `PUT /admin/domains/{domainId}`
+
+Requires JWT for role `ADMIN`.
 
 ```bash
 DOMAIN_ID="7b03ce18-e1f6-4e52-9f4c-0e4b575d2f6d"
@@ -228,6 +261,8 @@ Example response:
 ```
 
 `DELETE /admin/domains/{domainId}`
+
+Requires JWT for role `ADMIN`.
 
 ```bash
 curl -i -X DELETE "http://localhost:8080/admin/domains/$DOMAIN_ID" \
@@ -304,13 +339,11 @@ Expected status: `204 No Content`
 
 ---
 
-### Admin Researchers (ADMIN only)
-
-All routes below require a JWT for a user with role `ADMIN`.
+### Researchers
 
 Researchers are managed as a standalone resource (not a `users` account).
 
-`GET /admin/researchers`
+`GET /admin/researchers` (requires JWT: `USER` / `MODERATOR` / `ADMIN`)
 
 Optional query params:
 
@@ -318,8 +351,10 @@ Optional query params:
 - `domainIds`: optional list of domain UUIDs; when provided, only researchers that specialize in **all** listed domains are returned
 
 ```bash
+TOKEN="<paste-access-token-here>"
+
 curl -s "http://localhost:8080/admin/researchers?name=alice&domainIds=57a070a0-8458-46ad-b6f6-f1c31dc7ec67&domainIds=4d4fc5f3-b6ab-42b4-9cc2-7c5a663e2a31" \
-  -H "Authorization: Bearer $ADMIN_TOKEN"
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 Example response:
@@ -343,6 +378,8 @@ Example response:
 ```
 
 `POST /admin/researchers`
+
+Requires JWT for role `ADMIN`.
 
 ```bash
 curl -s -X POST "http://localhost:8080/admin/researchers" \
@@ -378,6 +415,8 @@ Example response (`201 Created`):
 
 `PUT /admin/researchers/{researcherId}`
 
+Requires JWT for role `ADMIN`.
+
 ```bash
 RESEARCHER_ID="6f5e2a0b-95b6-4306-b263-4d5f4f2f1ef7"
 
@@ -412,6 +451,8 @@ Notes:
 
 `DELETE /admin/researchers/{researcherId}`
 
+Requires JWT for role `ADMIN`.
+
 ```bash
 curl -i -X DELETE "http://localhost:8080/admin/researchers/$RESEARCHER_ID" \
   -H "Authorization: Bearer $ADMIN_TOKEN"
@@ -421,15 +462,15 @@ Expected status: `204 No Content`
 
 ---
 
-### Admin Publications (ADMIN only)
+### Publications
 
-All routes below require a JWT for a user with role `ADMIN`.
-
-`GET /admin/publications`
+`GET /admin/publications` (requires JWT: `USER` / `MODERATOR` / `ADMIN`)
 
 ```bash
+TOKEN="<paste-access-token-here>"
+
 curl -s http://localhost:8080/admin/publications \
-  -H "Authorization: Bearer $ADMIN_TOKEN"
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 Example response:
@@ -453,6 +494,8 @@ Example response:
 ```
 
 `POST /admin/publications`
+
+Requires JWT for role `ADMIN`.
 
 ```bash
 curl -s -X POST "http://localhost:8080/admin/publications" \
@@ -488,6 +531,8 @@ Example response (`201 Created`):
 ```
 
 `PUT /admin/publications/{publicationId}`
+
+Requires JWT for role `ADMIN`.
 
 ```bash
 PUBLICATION_ID="f1c3d6a8-6c43-4b4e-b4c2-8e0c2c4f09f2"
@@ -525,6 +570,8 @@ Notes:
 - If one or more `researcherIds` do not exist, request fails with `RESEARCHER_NOT_FOUND`.
 
 `DELETE /admin/publications/{publicationId}`
+
+Requires JWT for role `ADMIN`.
 
 ```bash
 curl -i -X DELETE "http://localhost:8080/admin/publications/$PUBLICATION_ID" \
@@ -664,7 +711,7 @@ Moderator actualite errors may include:
 - `INVALID_ACTUALITE_TITLE`
 - `INVALID_ACTUALITE_CONTENT`
 
-Admin routes may also return `403 FORBIDDEN` when a non-admin token is used.
+Admin write routes (`POST`, `PUT`, `DELETE`) may return `403 FORBIDDEN` when a non-admin token is used.
 
 ---
 

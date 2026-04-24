@@ -8,91 +8,94 @@ import org.springframework.test.web.servlet.MvcResult;
 
 class AdminDomainsApiRegressionTest extends ApiRegressionTestSupport {
 
-    @Test
-    void adminCanCreateListUpdateAndDeleteDomains() throws Exception {
-        String adminToken = signupLoginAndPromoteToAdmin(
-                randomEmail("domains-admin"),
-                randomUsername("domains-admin-user"),
-                "password123");
+        @Test
+        void adminCanCreateListUpdateAndDeleteDomains() throws Exception {
+                String adminToken = signupLoginAndPromoteToAdmin(
+                                randomEmail("domains-admin"),
+                                randomUsername("domains-admin-user"),
+                                "password123");
 
-        String createPayload = """
-                {
-                  "name": "Artificial Intelligence",
-                  "description": "AI and ML research"
-                }
-                """;
+                String createPayload = """
+                                {
+                                  "name": "Artificial Intelligence",
+                                  "description": "AI and ML research"
+                                }
+                                """;
 
-        MvcResult createResult = postJson("/admin/domains", adminToken, createPayload)
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.domainId").isNotEmpty())
-                .andExpect(jsonPath("$.name").value("Artificial Intelligence"))
-                .andExpect(jsonPath("$.description").value("AI and ML research"))
-                .andReturn();
+                MvcResult createResult = postJson("/admin/domains", adminToken, createPayload)
+                                .andExpect(status().isCreated())
+                                .andExpect(jsonPath("$.domainId").isNotEmpty())
+                                .andExpect(jsonPath("$.name").value("Artificial Intelligence"))
+                                .andExpect(jsonPath("$.description").value("AI and ML research"))
+                                .andReturn();
 
-        String domainId = extractJsonField(createResult, "domainId");
+                String domainId = extractJsonField(createResult, "domainId");
 
-        getWithToken("/admin/domains", adminToken)
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[?(@.domainId=='" + domainId + "')]").isNotEmpty())
-                .andExpect(jsonPath("$[?(@.name=='Artificial Intelligence')]").isNotEmpty());
+                getWithToken("/admin/domains", adminToken)
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$[?(@.domainId=='" + domainId + "')]").isNotEmpty())
+                                .andExpect(jsonPath("$[?(@.name=='Artificial Intelligence')]").isNotEmpty());
 
-        String updatePayload = """
-                {
-                  "name": "Applied AI",
-                  "description": "Applied AI projects"
-                }
-                """;
+                String updatePayload = """
+                                {
+                                  "name": "Applied AI",
+                                  "description": "Applied AI projects"
+                                }
+                                """;
 
-        putJson("/admin/domains/%s".formatted(domainId), adminToken, updatePayload)
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("Applied AI"))
-                .andExpect(jsonPath("$.description").value("Applied AI projects"));
+                putJson("/admin/domains/%s".formatted(domainId), adminToken, updatePayload)
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.name").value("Applied AI"))
+                                .andExpect(jsonPath("$.description").value("Applied AI projects"));
 
-        deleteWithToken("/admin/domains/%s".formatted(domainId), adminToken)
-                .andExpect(status().isNoContent());
+                deleteWithToken("/admin/domains/%s".formatted(domainId), adminToken)
+                                .andExpect(status().isNoContent());
 
-        putJson("/admin/domains/%s".formatted(domainId), adminToken, updatePayload)
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error").value("DOMAIN_NOT_FOUND"));
-    }
+                putJson("/admin/domains/%s".formatted(domainId), adminToken, updatePayload)
+                                .andExpect(status().isNotFound())
+                                .andExpect(jsonPath("$.error").value("DOMAIN_NOT_FOUND"));
+        }
 
-    @Test
-    void nonAdminCannotManageDomains() throws Exception {
-        String userToken = signupAndLogin(
-                randomEmail("domains-user"),
-                randomUsername("domains-user"),
-                "password123");
+        @Test
+        void nonAdminCanListButCannotManageDomains() throws Exception {
+                String userToken = signupAndLogin(
+                                randomEmail("domains-user"),
+                                randomUsername("domains-user"),
+                                "password123");
 
-        String createPayload = """
-                {
-                  "name": "Robotics",
-                  "description": "Robotics domain"
-                }
-                """;
+                getWithToken("/admin/domains", userToken)
+                                .andExpect(status().isOk());
 
-        postJson("/admin/domains", userToken, createPayload)
-                .andExpect(status().isForbidden());
-    }
+                String createPayload = """
+                                {
+                                  "name": "Robotics",
+                                  "description": "Robotics domain"
+                                }
+                                """;
 
-    @Test
-    void adminCannotCreateDuplicateDomainName() throws Exception {
-        String adminToken = signupLoginAndPromoteToAdmin(
-                randomEmail("domains-duplicate"),
-                randomUsername("domains-duplicate-admin"),
-                "password123");
+                postJson("/admin/domains", userToken, createPayload)
+                                .andExpect(status().isForbidden());
+        }
 
-        String payload = """
-                {
-                  "name": "Cybersecurity",
-                  "description": "Security domain"
-                }
-                """;
+        @Test
+        void adminCannotCreateDuplicateDomainName() throws Exception {
+                String adminToken = signupLoginAndPromoteToAdmin(
+                                randomEmail("domains-duplicate"),
+                                randomUsername("domains-duplicate-admin"),
+                                "password123");
 
-        postJson("/admin/domains", adminToken, payload)
-                .andExpect(status().isCreated());
+                String payload = """
+                                {
+                                  "name": "Cybersecurity",
+                                  "description": "Security domain"
+                                }
+                                """;
 
-        postJson("/admin/domains", adminToken, payload)
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("DOMAIN_NAME_ALREADY_EXISTS"));
-    }
+                postJson("/admin/domains", adminToken, payload)
+                                .andExpect(status().isCreated());
+
+                postJson("/admin/domains", adminToken, payload)
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.error").value("DOMAIN_NAME_ALREADY_EXISTS"));
+        }
 }
