@@ -9,5 +9,6 @@ public record ResearcherAdminResponse(
                 String name,
                 String biographie,
                 List<DomainResponse> domains,
-                OffsetDateTime createdAt) {
+                OffsetDateTime createdAt,
+                String photoUrl) {
 }

@@ -25,6 +25,25 @@ services:
     networks:
       - techcenter_network
 
+  minio:
+    image: minio/minio:RELEASE.2025-04-08T15-41-24Z
+    container_name: minio_techcenter
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio12345}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    logging:
+      driver: "json-file"
+      options:
+        tag: "{{.Name}}"
+    networks:
+      - techcenter_network
+
   redis:
     image: redis:8.4.0
     container_name: redis_techcenter
@@ -82,6 +101,8 @@ services:
 volumes:
   postgres_data:
     name: techcenter_agents_postgres_data
+  minio_data:
+    name: techcenter_agents_minio_data
 
 networks:
   techcenter_network:

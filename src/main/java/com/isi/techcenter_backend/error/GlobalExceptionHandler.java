@@ -47,7 +47,7 @@ public class GlobalExceptionHandler {
                 HttpStatus.NOT_FOUND;
             case INVALID_EMAIL, INVALID_USERNAME, INVALID_PASSWORD, INVALID_ROLE, DOMAIN_NAME_ALREADY_EXISTS,
                     INVALID_DOMAIN_NAME, PUBLICATION_DOI_ALREADY_EXISTS, INVALID_PUBLICATION_TITLE,
-                    INVALID_ACTUALITE_CONTENT ->
+                    INVALID_ACTUALITE_CONTENT, INVALID_FILE ->
                 HttpStatus.BAD_REQUEST;
         };
     }

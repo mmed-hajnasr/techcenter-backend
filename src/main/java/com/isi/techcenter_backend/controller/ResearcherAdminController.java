@@ -3,6 +3,7 @@ package com.isi.techcenter_backend.controller;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.isi.techcenter_backend.model.ResearcherAdminResponse;
 import com.isi.techcenter_backend.model.ResearcherUpdateRequest;
@@ -93,6 +95,30 @@ public class ResearcherAdminController {
                     researcherAdminService.deleteResearcher(researcherId);
                     return ResponseEntity.noContent().build();
                 },
+                "researcherId",
+                researcherId.toString());
+    }
+
+    @PutMapping(value = "/{researcherId}/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ResearcherAdminResponse> uploadResearcherPhoto(
+            @PathVariable UUID researcherId,
+            @RequestParam("photo") MultipartFile photo) {
+        return endpointTraceSupport.inSpan(
+                "admin.researchers.upload-photo",
+                "/admin/researchers/{researcherId}/photo",
+                "upload-researcher-photo",
+                () -> ResponseEntity.ok(researcherAdminService.uploadResearcherPhoto(researcherId, photo)),
+                "researcherId",
+                researcherId.toString());
+    }
+
+    @DeleteMapping("/{researcherId}/photo")
+    public ResponseEntity<ResearcherAdminResponse> deleteResearcherPhoto(@PathVariable UUID researcherId) {
+        return endpointTraceSupport.inSpan(
+                "admin.researchers.delete-photo",
+                "/admin/researchers/{researcherId}/photo",
+                "delete-researcher-photo",
+                () -> ResponseEntity.ok(researcherAdminService.deleteResearcherPhoto(researcherId)),
                 "researcherId",
                 researcherId.toString());
     }

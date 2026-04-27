@@ -11,6 +11,7 @@ import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.isi.techcenter_backend.entity.ChercheurEntity;
 import com.isi.techcenter_backend.entity.EcritParEntity;
@@ -33,16 +34,19 @@ public class PublicationAdminService {
     private final PublicationRepository publicationRepository;
     private final ChercheurRepository chercheurRepository;
     private final EcritParRepository ecritParRepository;
+    private final MinioStorageService minioStorageService;
     private final Tracer tracer;
 
     public PublicationAdminService(
             PublicationRepository publicationRepository,
             ChercheurRepository chercheurRepository,
             EcritParRepository ecritParRepository,
+            MinioStorageService minioStorageService,
             Tracer tracer) {
         this.publicationRepository = publicationRepository;
         this.chercheurRepository = chercheurRepository;
         this.ecritParRepository = ecritParRepository;
+        this.minioStorageService = minioStorageService;
         this.tracer = tracer;
     }
 
@@ -136,6 +140,18 @@ public class PublicationAdminService {
     @Transactional
     public void deletePublication(UUID publicationId) {
         PublicationEntity publication = findPublicationWithAuthors(publicationId);
+        if (publication.getFichierPdfPath() != null) {
+            inStep(
+                    "admin.publications.minio-delete-pdf",
+                    () -> {
+                        minioStorageService.deletePublicationPdf(publication.getFichierPdfPath());
+                        return null;
+                    },
+                    "step",
+                    "delete-publication-pdf",
+                    "publicationId",
+                    publicationId.toString());
+        }
         inStep(
                 "admin.publications.db-delete-authors",
                 () -> {
@@ -156,6 +172,53 @@ public class PublicationAdminService {
                 "db-delete-publication",
                 "publicationId",
                 publicationId.toString());
+    }
+
+    @Transactional
+    public PublicationAdminResponse uploadPublicationPdf(UUID publicationId, MultipartFile pdf) {
+        PublicationEntity publication = findPublicationWithAuthors(publicationId);
+        String pdfPath = inStep(
+                "admin.publications.minio-store-pdf",
+                () -> minioStorageService.storePublicationPdf(publicationId, pdf),
+                "step",
+                "store-publication-pdf",
+                "publicationId",
+                publicationId.toString());
+        publication.setFichierPdfPath(pdfPath);
+        inStep(
+                "admin.publications.db-save-pdf-path",
+                () -> publicationRepository.save(publication),
+                "step",
+                "save-publication-pdf-path",
+                "publicationId",
+                publicationId.toString());
+        return toResponse(findPublicationWithAuthors(publicationId));
+    }
+
+    @Transactional
+    public PublicationAdminResponse deletePublicationPdf(UUID publicationId) {
+        PublicationEntity publication = findPublicationWithAuthors(publicationId);
+        if (publication.getFichierPdfPath() != null) {
+            inStep(
+                    "admin.publications.minio-delete-pdf",
+                    () -> {
+                        minioStorageService.deletePublicationPdf(publication.getFichierPdfPath());
+                        return null;
+                    },
+                    "step",
+                    "delete-publication-pdf",
+                    "publicationId",
+                    publicationId.toString());
+        }
+        publication.setFichierPdfPath(null);
+        inStep(
+                "admin.publications.db-clear-pdf-path",
+                () -> publicationRepository.save(publication),
+                "step",
+                "clear-publication-pdf-path",
+                "publicationId",
+                publicationId.toString());
+        return toResponse(findPublicationWithAuthors(publicationId));
     }
 
     private PublicationEntity findPublicationWithAuthors(UUID publicationId) {
@@ -270,7 +333,8 @@ public class PublicationAdminService {
                 publication.getResume(),
                 publication.getDoi(),
                 publication.getDatePublication(),
-                authors);
+                authors,
+            minioStorageService.getPublicationPdfPresignedUrl(publication.getFichierPdfPath()));
     }
 
     private <T> T inStep(String stepSpanName, Supplier<T> action, String... tagPairs) {

@@ -10,5 +10,6 @@ public record PublicationAdminResponse(
         String resume,
         String doi,
         OffsetDateTime datePublication,
-        List<ResearcherSummaryResponse> authors) {
+        List<ResearcherSummaryResponse> authors,
+        String pdfUrl) {
 }

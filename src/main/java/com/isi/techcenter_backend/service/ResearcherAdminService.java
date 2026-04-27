@@ -12,6 +12,7 @@ import java.util.function.Supplier;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.isi.techcenter_backend.entity.ChercheurEntity;
 import com.isi.techcenter_backend.entity.DomaineEntity;
@@ -34,16 +35,19 @@ public class ResearcherAdminService {
     private final ChercheurRepository chercheurRepository;
     private final DomaineRepository domaineRepository;
     private final SpecialiseDansRepository specialiseDansRepository;
+    private final MinioStorageService minioStorageService;
     private final Tracer tracer;
 
     public ResearcherAdminService(
             ChercheurRepository chercheurRepository,
             DomaineRepository domaineRepository,
             SpecialiseDansRepository specialiseDansRepository,
+            MinioStorageService minioStorageService,
             Tracer tracer) {
         this.chercheurRepository = chercheurRepository;
         this.domaineRepository = domaineRepository;
         this.specialiseDansRepository = specialiseDansRepository;
+        this.minioStorageService = minioStorageService;
         this.tracer = tracer;
     }
 
@@ -120,6 +124,18 @@ public class ResearcherAdminService {
     @Transactional
     public void deleteResearcher(UUID researcherId) {
         ChercheurEntity researcher = findResearcherWithSpecialisations(researcherId);
+        if (researcher.getPhotoPath() != null) {
+            inStep(
+                    "admin.researchers.minio-delete-photo",
+                    () -> {
+                        minioStorageService.deleteResearcherPhoto(researcher.getPhotoPath());
+                        return null;
+                    },
+                    "step",
+                    "delete-researcher-photo",
+                    "researcherId",
+                    researcherId.toString());
+        }
         inStep(
                 "admin.researchers.db-delete-specialisations",
                 () -> {
@@ -140,6 +156,53 @@ public class ResearcherAdminService {
                 "delete-researcher",
                 "researcherId",
                 researcherId.toString());
+    }
+
+    @Transactional
+    public ResearcherAdminResponse uploadResearcherPhoto(UUID researcherId, MultipartFile photo) {
+        ChercheurEntity researcher = findResearcherWithSpecialisations(researcherId);
+        String photoPath = inStep(
+                "admin.researchers.minio-store-photo",
+                () -> minioStorageService.storeResearcherPhoto(researcherId, photo),
+                "step",
+                "store-researcher-photo",
+                "researcherId",
+                researcherId.toString());
+        researcher.setPhotoPath(photoPath);
+        inStep(
+                "admin.researchers.db-save-photo-path",
+                () -> chercheurRepository.save(researcher),
+                "step",
+                "save-researcher-photo-path",
+                "researcherId",
+                researcherId.toString());
+        return toResponse(findResearcherWithSpecialisations(researcherId));
+    }
+
+    @Transactional
+    public ResearcherAdminResponse deleteResearcherPhoto(UUID researcherId) {
+        ChercheurEntity researcher = findResearcherWithSpecialisations(researcherId);
+        if (researcher.getPhotoPath() != null) {
+            inStep(
+                    "admin.researchers.minio-delete-photo",
+                    () -> {
+                        minioStorageService.deleteResearcherPhoto(researcher.getPhotoPath());
+                        return null;
+                    },
+                    "step",
+                    "delete-researcher-photo",
+                    "researcherId",
+                    researcherId.toString());
+        }
+        researcher.setPhotoPath(null);
+        inStep(
+                "admin.researchers.db-clear-photo-path",
+                () -> chercheurRepository.save(researcher),
+                "step",
+                "clear-researcher-photo-path",
+                "researcherId",
+                researcherId.toString());
+        return toResponse(findResearcherWithSpecialisations(researcherId));
     }
 
     private void updateResearcherDomains(ChercheurEntity researcher, List<UUID> domainIds) {
@@ -262,7 +325,8 @@ public class ResearcherAdminService {
                 researcher.getName(),
                 researcher.getBiographie(),
                 domains,
-                researcher.getCreatedAt());
+                researcher.getCreatedAt(),
+            minioStorageService.getResearcherPhotoPresignedUrl(researcher.getPhotoPath()));
     }
 
     private <T> T inStep(String stepSpanName, Supplier<T> action, String... tagPairs) {

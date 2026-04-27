@@ -29,8 +29,8 @@ public class ChercheurEntity {
     @Column(name = "biographie", length = 4000)
     private String biographie;
 
-    @Column(name = "photo", columnDefinition = "BYTEA")
-    private byte[] photo;
+    @Column(name = "photo", length = 1024)
+    private String photoPath;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "TIMESTAMPTZ DEFAULT NOW()")
@@ -62,12 +62,12 @@ public class ChercheurEntity {
         this.biographie = biographie;
     }
 
-    public byte[] getPhoto() {
-        return photo;
+    public String getPhotoPath() {
+        return photoPath;
     }
 
-    public void setPhoto(byte[] photo) {
-        this.photo = photo;
+    public void setPhotoPath(String photoPath) {
+        this.photoPath = photoPath;
     }
 
     public OffsetDateTime getCreatedAt() {

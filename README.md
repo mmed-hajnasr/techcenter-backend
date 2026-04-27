@@ -17,10 +17,10 @@ Spring Boot backend with PostgreSQL, Hibernate/JPA, JWT auth, and Argon2 passwor
 
 ## Quick Start
 
-### 1) Start PostgreSQL (optional via Docker Compose)
+### 1) Start infrastructure (optional via Docker Compose)
 
 ```bash
-docker compose up -d postgres
+docker compose up -d postgres redis minio
 ```
 
 ### 2) Run the app
@@ -372,10 +372,17 @@ Example response:
         "description": "AI domain"
       }
     ],
-    "createdAt": "2026-04-22T10:00:00.000Z"
+    "createdAt": "2026-04-22T10:00:00.000Z",
+    "photoUrl": "http://localhost:9000/techcenter-photos/researchers/.../photo?..."
   }
 ]
 ```
+
+Notes:
+
+- `photoUrl` is a **MinIO presigned download URL**.
+- It is generated at response time and may be `null` when no photo is uploaded.
+- URL expiration is controlled by `MINIO_PRESIGN_EXPIRY_SECONDS` (default `3600`).
 
 `POST /admin/researchers`
 
@@ -399,7 +406,6 @@ Example response (`201 Created`):
 ```json
 {
   "researcherId": "6f5e2a0b-95b6-4306-b263-4d5f4f2f1ef7",
-  "email": "researcher@example.com",
   "name": "alice researcher",
   "biographie": "AI researcher",
   "domains": [
@@ -409,7 +415,8 @@ Example response (`201 Created`):
       "description": "AI domain"
     }
   ],
-  "createdAt": "2026-04-22T10:00:00.000Z"
+  "createdAt": "2026-04-22T10:00:00.000Z",
+  "photoUrl": null
 }
 ```
 
@@ -437,7 +444,6 @@ Request payload:
 ```json
 {
   "name": "string (required, 3..255 chars)",
-  "email": "string (required, valid email, max 255 chars)",
   "biographie": "string (optional, max 4000 chars)",
   "domainIds": ["uuid", "..."]
 }
@@ -459,6 +465,38 @@ curl -i -X DELETE "http://localhost:8080/admin/researchers/$RESEARCHER_ID" \
 ```
 
 Expected status: `204 No Content`
+
+`PUT /admin/researchers/{researcherId}/photo`
+
+Requires JWT for role `ADMIN`. Uploads/overwrites researcher photo in MinIO.
+
+```bash
+curl -s -X PUT "http://localhost:8080/admin/researchers/$RESEARCHER_ID/photo" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -F "photo=@/absolute/path/to/photo.jpg"
+```
+
+Example response:
+
+```json
+{
+  "researcherId": "6f5e2a0b-95b6-4306-b263-4d5f4f2f1ef7",
+  "name": "alice researcher",
+  "biographie": "AI researcher",
+  "domains": [],
+  "createdAt": "2026-04-22T10:00:00.000Z",
+  "photoUrl": "http://localhost:9000/techcenter-photos/researchers/.../photo?..."
+}
+```
+
+`DELETE /admin/researchers/{researcherId}/photo`
+
+Requires JWT for role `ADMIN`. Deletes researcher photo from MinIO and clears stored path.
+
+```bash
+curl -s -X DELETE "http://localhost:8080/admin/researchers/$RESEARCHER_ID/photo" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
 
 ---
 
@@ -488,10 +526,17 @@ Example response:
         "researcherId": "6f5e2a0b-95b6-4306-b263-4d5f4f2f1ef7",
         "name": "alice researcher"
       }
-    ]
+    ],
+    "pdfUrl": "http://localhost:9000/techcenter-pdfs/publications/.../pdf?..."
   }
 ]
 ```
+
+Notes:
+
+- `pdfUrl` is a **MinIO presigned download URL**.
+- It is generated at response time and may be `null` when no PDF is uploaded.
+- URL expiration is controlled by `MINIO_PRESIGN_EXPIRY_SECONDS` (default `3600`).
 
 `POST /admin/publications`
 
@@ -526,7 +571,8 @@ Example response (`201 Created`):
       "researcherId": "6f5e2a0b-95b6-4306-b263-4d5f4f2f1ef7",
       "name": "alice researcher"
     }
-  ]
+  ],
+  "pdfUrl": null
 }
 ```
 
@@ -579,6 +625,25 @@ curl -i -X DELETE "http://localhost:8080/admin/publications/$PUBLICATION_ID" \
 ```
 
 Expected status: `204 No Content`
+
+`PUT /admin/publications/{publicationId}/pdf`
+
+Requires JWT for role `ADMIN`. Uploads/overwrites publication PDF in MinIO.
+
+```bash
+curl -s -X PUT "http://localhost:8080/admin/publications/$PUBLICATION_ID/pdf" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -F "pdf=@/absolute/path/to/document.pdf"
+```
+
+`DELETE /admin/publications/{publicationId}/pdf`
+
+Requires JWT for role `ADMIN`. Deletes publication PDF from MinIO and clears stored path.
+
+```bash
+curl -s -X DELETE "http://localhost:8080/admin/publications/$PUBLICATION_ID/pdf" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
 
 ---
 
@@ -703,6 +768,7 @@ Admin publication errors may include:
 - `PUBLICATION_DOI_ALREADY_EXISTS`
 - `INVALID_PUBLICATION_TITLE`
 - `RESEARCHER_NOT_FOUND`
+- `INVALID_FILE`
 
 Moderator actualite errors may include:
 
@@ -724,14 +790,26 @@ Key settings (from `src/main/resources/application.properties`):
 - `DATABASE__NAME` (default `techcenter`)
 - `DATABASE__USERNAME` (default `postgres`)
 - `DATABASE__PASSWORD` (default `postgres`)
-- `APP_AUTH_JWT_SECRET` (must be at least 32 bytes in production)
-- `APP_AUTH_JWT_EXPIRATION_SECONDS` (default `900`)
-- `APP_AUTH_JWT_ISSUER` (default `techcenter-backend`)
+- `JWT_SECRET` (must be at least 32 bytes in production)
+- `JWT_EXPIRATION` (default `86400`)
+- `JWT_ISSUER` (default `techcenter-backend`)
+- `MINIO_ENDPOINT` (default `http://localhost:9000`)
+- `MINIO_ROOT_USER` (default `minio`)
+- `MINIO_ROOT_PASSWORD` (default `minio12345`)
+- `MINIO_PHOTO_BUCKET` (default `techcenter-photos`)
+- `MINIO_PDF_BUCKET` (default `techcenter-pdfs`)
+- `MINIO_PRESIGN_EXPIRY_SECONDS` (default `3600`)
 
 Example:
 
 ```bash
-export APP_AUTH_JWT_SECRET="replace-with-a-long-random-secret-at-least-32-bytes"
-export APP_AUTH_JWT_EXPIRATION_SECONDS="900"
-export APP_AUTH_JWT_ISSUER="techcenter-backend"
+export JWT_SECRET="replace-with-a-long-random-secret-at-least-32-bytes"
+export JWT_EXPIRATION="86400"
+export JWT_ISSUER="techcenter-backend"
+export MINIO_ENDPOINT="http://localhost:9000"
+export MINIO_ROOT_USER="minio"
+export MINIO_ROOT_PASSWORD="minio12345"
+export MINIO_PHOTO_BUCKET="techcenter-photos"
+export MINIO_PDF_BUCKET="techcenter-pdfs"
+export MINIO_PRESIGN_EXPIRY_SECONDS="3600"
 ```

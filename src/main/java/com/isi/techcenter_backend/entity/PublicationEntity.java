@@ -31,8 +31,8 @@ public class PublicationEntity {
     @Column(name = "doi", unique = true)
     private String doi;
 
-    @Column(name = "fichier_pdf", columnDefinition = "BYTEA")
-    private byte[] fichierPdf;
+    @Column(name = "fichier_pdf", length = 1024)
+    private String fichierPdfPath;
 
     @Column(name = "date_publication")
     private OffsetDateTime datePublication;
@@ -68,12 +68,12 @@ public class PublicationEntity {
         this.doi = doi;
     }
 
-    public byte[] getFichierPdf() {
-        return fichierPdf;
+    public String getFichierPdfPath() {
+        return fichierPdfPath;
     }
 
-    public void setFichierPdf(byte[] fichierPdf) {
-        this.fichierPdf = fichierPdf;
+    public void setFichierPdfPath(String fichierPdfPath) {
+        this.fichierPdfPath = fichierPdfPath;
     }
 
     public OffsetDateTime getDatePublication() {
