@@ -44,25 +44,6 @@ services:
     networks:
       - techcenter_network
 
-  redis:
-    image: redis:8.4.0
-    container_name: redis_techcenter
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    environment:
-      ALLOW_EMPTY_PASSWORD: "yes"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 1s
-      timeout: 3s
-      retries: 50
-    logging:
-      driver: "json-file"
-      options:
-        tag: "{{.Name}}"
-    networks:
-      - techcenter_network
-
   jaeger:
     container_name: jaeger_techcenter
     image: jaegertracing/jaeger:${JAEGER_VERSION:-2.10.0}

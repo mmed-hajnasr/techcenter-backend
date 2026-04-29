@@ -18,6 +18,8 @@ import com.isi.techcenter_backend.error.AuthException;
 import com.isi.techcenter_backend.model.AuthResponse;
 import com.isi.techcenter_backend.model.LoginRequest;
 import com.isi.techcenter_backend.model.SignupRequest;
+import com.isi.techcenter_backend.model.UserPasswordUpdateRequest;
+import com.isi.techcenter_backend.model.UserProfileUpdateRequest;
 import com.isi.techcenter_backend.repository.UserRepository;
 import com.isi.techcenter_backend.security.JwtService;
 
@@ -175,6 +177,116 @@ public class AuthService {
                         .orElseThrow(() -> new AuthException(AppErrorType.NOT_LOGGED_IN, "User not found")),
                 "step",
                 "find-user-by-id",
+                "userId",
+                userId.toString());
+    }
+
+    @Transactional
+    public AuthResponse updateCurrentUserProfile(UUID userId, UserProfileUpdateRequest request) {
+        UserEntity user = getUserById(userId);
+
+        String normalizedEmail = inStep(
+                "auth.user.update-profile.normalize-email",
+                () -> request.email().trim().toLowerCase(),
+                "step",
+                "normalize-email",
+                "userId",
+                userId.toString());
+        String normalizedUsername = inStep(
+                "auth.user.update-profile.normalize-username",
+                () -> request.username().trim(),
+                "step",
+                "normalize-username",
+                "userId",
+                userId.toString());
+
+        if (normalizedUsername.length() < 3) {
+            throw new AuthException(AppErrorType.INVALID_USERNAME, "Username must be at least 3 characters");
+        }
+
+        boolean emailExists = inStep(
+                "auth.user.update-profile.db-check-email-exists",
+                () -> userRepository.existsByEmailIgnoreCaseAndUserIdNot(normalizedEmail, userId),
+                "step",
+                "check-email-exists",
+                "userId",
+                userId.toString());
+        if (emailExists) {
+            throw new AuthException(AppErrorType.INVALID_EMAIL, "Email is already in use");
+        }
+
+        boolean usernameExists = inStep(
+                "auth.user.update-profile.db-check-username-exists",
+                () -> userRepository.existsByUsernameIgnoreCaseAndUserIdNot(normalizedUsername, userId),
+                "step",
+                "check-username-exists",
+                "userId",
+                userId.toString());
+        if (usernameExists) {
+            throw new AuthException(AppErrorType.INVALID_USERNAME, "Username is already in use");
+        }
+
+        user.setEmail(normalizedEmail);
+        user.setUsername(normalizedUsername);
+
+        UserEntity savedUser = inStep(
+                "auth.user.update-profile.db-save",
+                () -> userRepository.save(user),
+                "step",
+                "save-user",
+                "userId",
+                userId.toString());
+
+        return new AuthResponse(
+                savedUser.getUserId(),
+                savedUser.getEmail(),
+                savedUser.getUsername(),
+                savedUser.getCreatedAt(),
+                null,
+                0);
+    }
+
+    @Transactional
+    public void updateCurrentUserPassword(UUID userId, UserPasswordUpdateRequest request) {
+        UserEntity user = getUserById(userId);
+
+        boolean currentPasswordMatches = inStep(
+                "auth.user.update-password.verify-current",
+                () -> passwordService.verifyPassword(request.currentPassword(), user.getPasswordHash()),
+                "step",
+                "verify-current-password",
+                "userId",
+                userId.toString());
+        if (!currentPasswordMatches) {
+            throw new AuthException(AppErrorType.INVALID_PASSWORD, "Current password is incorrect");
+        }
+
+        boolean reusingSamePassword = inStep(
+                "auth.user.update-password.verify-new",
+                () -> passwordService.verifyPassword(request.newPassword(), user.getPasswordHash()),
+                "step",
+                "verify-new-password-different",
+                "userId",
+                userId.toString());
+        if (reusingSamePassword) {
+            throw new AuthException(AppErrorType.INVALID_PASSWORD,
+                    "New password must be different from current password");
+        }
+
+        String newPasswordHash = inStep(
+                "auth.user.update-password.hash-new",
+                () -> passwordService.hashPassword(request.newPassword()),
+                "step",
+                "hash-new-password",
+                "userId",
+                userId.toString());
+
+        user.setPasswordHash(newPasswordHash);
+        inStep(
+                "auth.user.update-password.db-save",
+                () -> userRepository.save(user),
+                "step",
+                "save-user-password",
                 "userId",
                 userId.toString());
     }

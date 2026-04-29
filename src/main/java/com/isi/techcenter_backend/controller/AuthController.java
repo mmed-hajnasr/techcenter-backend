@@ -7,6 +7,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -14,6 +15,8 @@ import com.isi.techcenter_backend.entity.UserEntity;
 import com.isi.techcenter_backend.model.AuthResponse;
 import com.isi.techcenter_backend.model.LoginRequest;
 import com.isi.techcenter_backend.model.SignupRequest;
+import com.isi.techcenter_backend.model.UserPasswordUpdateRequest;
+import com.isi.techcenter_backend.model.UserProfileUpdateRequest;
 import com.isi.techcenter_backend.service.AuthService;
 import com.isi.techcenter_backend.tracing.EndpointTraceSupport;
 
@@ -65,6 +68,37 @@ public class AuthController {
                             user.getCreatedAt(),
                             null,
                             0));
+                },
+                "userId",
+                userId.toString());
+    }
+
+    @PutMapping("/user/me/profile")
+    public ResponseEntity<AuthResponse> updateProfile(
+            Authentication authentication,
+            @Valid @RequestBody UserProfileUpdateRequest request) {
+        UUID userId = UUID.fromString(authentication.getName());
+        return endpointTraceSupport.inSpan(
+                "auth.user.update-profile",
+                "/user/me/profile",
+                "update-current-user-profile",
+                () -> ResponseEntity.ok(authService.updateCurrentUserProfile(userId, request)),
+                "userId",
+                userId.toString());
+    }
+
+    @PutMapping("/user/me/password")
+    public ResponseEntity<Void> updatePassword(
+            Authentication authentication,
+            @Valid @RequestBody UserPasswordUpdateRequest request) {
+        UUID userId = UUID.fromString(authentication.getName());
+        return endpointTraceSupport.inSpan(
+                "auth.user.update-password",
+                "/user/me/password",
+                "update-current-user-password",
+                () -> {
+                    authService.updateCurrentUserPassword(userId, request);
+                    return ResponseEntity.noContent().build();
                 },
                 "userId",
                 userId.toString());

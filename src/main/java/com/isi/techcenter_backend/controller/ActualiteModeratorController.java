@@ -3,6 +3,7 @@ package com.isi.techcenter_backend.controller;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
@@ -12,7 +13,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.isi.techcenter_backend.model.ActualiteModeratorResponse;
 import com.isi.techcenter_backend.model.ActualiteUpsertRequest;
@@ -81,6 +84,39 @@ public class ActualiteModeratorController {
                     actualiteModeratorService.deleteActualite(actualiteId);
                     return ResponseEntity.noContent().build();
                 },
+                "actualiteId",
+                actualiteId.toString(),
+                "moderatorId",
+                moderatorId.toString());
+    }
+
+    @PutMapping(value = "/{actualiteId}/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ActualiteModeratorResponse> uploadActualitePhoto(
+            Authentication authentication,
+            @PathVariable UUID actualiteId,
+            @RequestParam("photo") MultipartFile photo) {
+        UUID moderatorId = UUID.fromString(authentication.getName());
+        return endpointTraceSupport.inSpan(
+                "moderator.actualites.upload-photo",
+                "/moderator/actualites/{actualiteId}/photo",
+                "upload-actualite-photo",
+                () -> ResponseEntity.ok(actualiteModeratorService.uploadActualitePhoto(actualiteId, photo)),
+                "actualiteId",
+                actualiteId.toString(),
+                "moderatorId",
+                moderatorId.toString());
+    }
+
+    @DeleteMapping("/{actualiteId}/photo")
+    public ResponseEntity<ActualiteModeratorResponse> deleteActualitePhoto(
+            Authentication authentication,
+            @PathVariable UUID actualiteId) {
+        UUID moderatorId = UUID.fromString(authentication.getName());
+        return endpointTraceSupport.inSpan(
+                "moderator.actualites.delete-photo",
+                "/moderator/actualites/{actualiteId}/photo",
+                "delete-actualite-photo",
+                () -> ResponseEntity.ok(actualiteModeratorService.deleteActualitePhoto(actualiteId)),
                 "actualiteId",
                 actualiteId.toString(),
                 "moderatorId",

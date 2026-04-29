@@ -8,6 +8,7 @@ import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.isi.techcenter_backend.entity.ActualiteEntity;
 import com.isi.techcenter_backend.entity.UserEntity;
@@ -24,14 +25,17 @@ public class ActualiteModeratorService {
 
     private final ActualiteRepository actualiteRepository;
     private final UserRepository userRepository;
+    private final MinioStorageService minioStorageService;
     private final Tracer tracer;
 
     public ActualiteModeratorService(
             ActualiteRepository actualiteRepository,
             UserRepository userRepository,
+            MinioStorageService minioStorageService,
             Tracer tracer) {
         this.actualiteRepository = actualiteRepository;
         this.userRepository = userRepository;
+        this.minioStorageService = minioStorageService;
         this.tracer = tracer;
     }
 
@@ -151,6 +155,19 @@ public class ActualiteModeratorService {
                 "actualiteId",
                 actualiteId.toString());
 
+        if (actualite.getPhotoPath() != null) {
+            inStep(
+                    "moderator.actualites.delete.minio-delete-photo",
+                    () -> {
+                        minioStorageService.deleteActualitePhoto(actualite.getPhotoPath());
+                        return null;
+                    },
+                    "step",
+                    "delete-actualite-photo",
+                    "actualiteId",
+                    actualiteId.toString());
+        }
+
         inStep(
                 "moderator.actualites.delete.db-delete-actualite",
                 () -> {
@@ -166,6 +183,71 @@ public class ActualiteModeratorService {
                 "delete-actualite",
                 "actualiteId",
                 actualiteId.toString());
+    }
+
+    @Transactional
+    public ActualiteModeratorResponse uploadActualitePhoto(UUID actualiteId, MultipartFile photo) {
+        ActualiteEntity actualite = inStep(
+                "moderator.actualites.upload-photo.db-find-actualite-by-id",
+                () -> findActualiteById(actualiteId),
+                "step",
+                "find-actualite-by-id",
+                "actualiteId",
+                actualiteId.toString());
+
+        String photoPath = inStep(
+                "moderator.actualites.upload-photo.minio-store-photo",
+                () -> minioStorageService.storeActualitePhoto(actualiteId, photo),
+                "step",
+                "store-actualite-photo",
+                "actualiteId",
+                actualiteId.toString());
+
+        actualite.setPhotoPath(photoPath);
+        ActualiteEntity savedActualite = inStep(
+                "moderator.actualites.upload-photo.db-save-photo-path",
+                () -> actualiteRepository.save(actualite),
+                "step",
+                "save-actualite-photo-path",
+                "actualiteId",
+                actualiteId.toString());
+
+        return toResponse(savedActualite);
+    }
+
+    @Transactional
+    public ActualiteModeratorResponse deleteActualitePhoto(UUID actualiteId) {
+        ActualiteEntity actualite = inStep(
+                "moderator.actualites.delete-photo.db-find-actualite-by-id",
+                () -> findActualiteById(actualiteId),
+                "step",
+                "find-actualite-by-id",
+                "actualiteId",
+                actualiteId.toString());
+
+        if (actualite.getPhotoPath() != null) {
+            inStep(
+                    "moderator.actualites.delete-photo.minio-delete-photo",
+                    () -> {
+                        minioStorageService.deleteActualitePhoto(actualite.getPhotoPath());
+                        return null;
+                    },
+                    "step",
+                    "delete-actualite-photo",
+                    "actualiteId",
+                    actualiteId.toString());
+        }
+
+        actualite.setPhotoPath(null);
+        ActualiteEntity savedActualite = inStep(
+                "moderator.actualites.delete-photo.db-clear-photo-path",
+                () -> actualiteRepository.save(actualite),
+                "step",
+                "clear-actualite-photo-path",
+                "actualiteId",
+                actualiteId.toString());
+
+        return toResponse(savedActualite);
     }
 
     private UserEntity findAuthorizedModeratorById(UUID moderatorId) {
@@ -211,7 +293,8 @@ public class ActualiteModeratorService {
                 actualite.getContenu(),
                 actualite.getDatePublication(),
                 actualite.getEstEnAvant(),
-                actualite.getModerateur().getUserId());
+                actualite.getModerateur().getUserId(),
+                minioStorageService.getActualitePhotoPresignedUrl(actualite.getPhotoPath()));
     }
 
     private <T> T inStep(String stepSpanName, Supplier<T> action, String... tagPairs) {

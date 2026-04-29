@@ -12,9 +12,13 @@ import com.isi.techcenter_backend.repository.ActualiteRepository;
 public class ActualiteUserService {
 
     private final ActualiteRepository actualiteRepository;
+    private final MinioStorageService minioStorageService;
 
-    public ActualiteUserService(ActualiteRepository actualiteRepository) {
+    public ActualiteUserService(
+            ActualiteRepository actualiteRepository,
+            MinioStorageService minioStorageService) {
         this.actualiteRepository = actualiteRepository;
+        this.minioStorageService = minioStorageService;
     }
 
     @Transactional(readOnly = true)
@@ -27,7 +31,8 @@ public class ActualiteUserService {
                         actualite.getContenu(),
                         actualite.getDatePublication(),
                         actualite.getEstEnAvant(),
-                        actualite.getModerateur().getUserId()))
+                        actualite.getModerateur().getUserId(),
+                        minioStorageService.getActualitePhotoPresignedUrl(actualite.getPhotoPath())))
                 .toList();
     }
 }

@@ -11,8 +11,8 @@ Spring Boot backend with PostgreSQL, Hibernate/JPA, JWT auth, and Argon2 passwor
 - JWT-first authentication.
 - User roles: `ADMIN`, `MODERATOR`, `USER`.
 - Public endpoints: `POST /signup`, `POST /login`, `GET /health`.
-- Authenticated `USER` can access read-only `GET` for `actualites`, `domains`, `researchers`, and `publications`.
-- Protected endpoint: `GET /user/me`.
+- All `GET` endpoints are public **except** `GET /admin/users` (requires `ADMIN`).
+- Protected user profile endpoints: `PUT /user/me/profile`, `PUT /user/me/password`.
 - Send JWT in header: `Authorization: Bearer <token>`.
 
 ## Quick Start
@@ -155,19 +155,81 @@ Example response:
 }
 ```
 
----
+`PUT /user/me/profile` (requires JWT)
 
-### User Actualites
-
-`GET /user/actualites` (requires JWT)
-
-Returns all actualites ordered by `estEnAvant` (featured first), then by `datePublication` descending.
+Updates the authenticated user's email and username.
 
 ```bash
 TOKEN="<paste-access-token-here>"
 
-curl -s http://localhost:8080/user/actualites \
-  -H "Authorization: Bearer $TOKEN"
+curl -s -X PUT http://localhost:8080/user/me/profile \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "alice.updated@example.com",
+    "username": "alice-updated"
+  }'
+```
+
+Example response:
+
+```json
+{
+  "userId": "7f3f8b34-3dc8-4cc8-b4d8-7cb55fd4d80f",
+  "email": "alice.updated@example.com",
+  "username": "alice-updated",
+  "createdAt": "2026-04-21T20:10:11.222Z",
+  "accessToken": null,
+  "expiresInSeconds": 0
+}
+```
+
+Request payload:
+
+```json
+{
+  "email": "string (required, valid email, max 255 chars)",
+  "username": "string (required, 3..50 chars)"
+}
+```
+
+`PUT /user/me/password` (requires JWT)
+
+Updates the authenticated user's password.
+
+```bash
+TOKEN="<paste-access-token-here>"
+
+curl -i -X PUT http://localhost:8080/user/me/password \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "currentPassword": "StrongPass123!",
+    "newPassword": "EvenStrongerPass456!"
+  }'
+```
+
+Expected status: `204 No Content`
+
+Request payload:
+
+```json
+{
+  "currentPassword": "string (required, 8..128 chars)",
+  "newPassword": "string (required, 8..128 chars, must differ from current)"
+}
+```
+
+---
+
+### User Actualites
+
+`GET /user/actualites`
+
+Returns all actualites ordered by `estEnAvant` (featured first), then by `datePublication` descending.
+
+```bash
+curl -s http://localhost:8080/user/actualites
 ```
 
 Example response:
@@ -180,22 +242,26 @@ Example response:
     "contenu": "Appel à candidatures pour un nouveau projet IA.",
     "datePublication": "2026-04-22T10:00:00Z",
     "estEnAvant": true,
-    "moderateurId": "f2b4ad2e-ef2a-4eb0-96cf-b6ae4ebfd0ec"
+    "moderateurId": "f2b4ad2e-ef2a-4eb0-96cf-b6ae4ebfd0ec",
+    "photoUrl": "http://localhost:9000/techcenter-photos/actualites/.../photo?..."
   }
 ]
 ```
+
+Notes:
+
+- `photoUrl` is a **MinIO presigned download URL**.
+- It is generated at response time and may be `null` when no photo is uploaded.
+- URL expiration is controlled by `MINIO_PRESIGN_EXPIRY_SECONDS` (default `3600`).
 
 ---
 
 ### Domains
 
-`GET /admin/domains` (requires JWT: `USER` / `MODERATOR` / `ADMIN`)
+`GET /admin/domains`
 
 ```bash
-TOKEN="<paste-access-token-here>"
-
-curl -s http://localhost:8080/admin/domains \
-  -H "Authorization: Bearer $TOKEN"
+curl -s http://localhost:8080/admin/domains
 ```
 
 Example response:
@@ -343,7 +409,7 @@ Expected status: `204 No Content`
 
 Researchers are managed as a standalone resource (not a `users` account).
 
-`GET /admin/researchers` (requires JWT: `USER` / `MODERATOR` / `ADMIN`)
+`GET /admin/researchers`
 
 Optional query params:
 
@@ -351,10 +417,7 @@ Optional query params:
 - `domainIds`: optional list of domain UUIDs; when provided, only researchers that specialize in **all** listed domains are returned
 
 ```bash
-TOKEN="<paste-access-token-here>"
-
-curl -s "http://localhost:8080/admin/researchers?name=alice&domainIds=57a070a0-8458-46ad-b6f6-f1c31dc7ec67&domainIds=4d4fc5f3-b6ab-42b4-9cc2-7c5a663e2a31" \
-  -H "Authorization: Bearer $TOKEN"
+curl -s "http://localhost:8080/admin/researchers?name=alice&domainIds=57a070a0-8458-46ad-b6f6-f1c31dc7ec67&domainIds=4d4fc5f3-b6ab-42b4-9cc2-7c5a663e2a31"
 ```
 
 Example response:
@@ -400,6 +463,30 @@ curl -s -X POST "http://localhost:8080/admin/researchers" \
     ]
   }'
 ```
+
+If you want to attach a photo when creating a researcher, perform a two-step operation: first create the researcher with the JSON POST above, then upload the photo using the dedicated multipart `PUT` endpoint.
+
+```bash
+# create researcher (JSON)
+curl -s -X POST "http://localhost:8080/admin/researchers" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d '{
+    "name": "alice researcher",
+    "biographie": "AI researcher",
+    "domainIds": [
+      "57a070a0-8458-46ad-b6f6-f1c31dc7ec67"
+    ]
+  }'
+
+# then upload photo using the returned researcherId
+RESEARCHER_ID="<paste-researcher-id-here>"
+curl -s -X PUT "http://localhost:8080/admin/researchers/$RESEARCHER_ID/photo" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -F "photo=@resources/researchers/jane.jpg"
+```
+
+The `PUT /admin/researchers/{researcherId}/photo` endpoint accepts `multipart/form-data` and will store the file in MinIO; the returned researcher will include a `photoUrl` (presigned download URL).
 
 Example response (`201 Created`):
 
@@ -502,13 +589,10 @@ curl -s -X DELETE "http://localhost:8080/admin/researchers/$RESEARCHER_ID/photo"
 
 ### Publications
 
-`GET /admin/publications` (requires JWT: `USER` / `MODERATOR` / `ADMIN`)
+`GET /admin/publications`
 
 ```bash
-TOKEN="<paste-access-token-here>"
-
-curl -s http://localhost:8080/admin/publications \
-  -H "Authorization: Bearer $TOKEN"
+curl -s http://localhost:8080/admin/publications
 ```
 
 Example response:
@@ -556,6 +640,32 @@ curl -s -X POST "http://localhost:8080/admin/publications" \
     ]
   }'
 ```
+
+To attach a PDF to a publication, use a two-step workflow: create the publication with the JSON `POST` above, then upload the PDF with the dedicated multipart `PUT` endpoint.
+
+```bash
+# create publication (JSON)
+curl -s -X POST "http://localhost:8080/admin/publications" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d '{
+    "titre": "AI for Climate Modeling",
+    "resume": "A survey of ML methods for climate simulations.",
+    "doi": "10.1000/xyz123",
+    "datePublication": "2026-04-22T10:00:00Z",
+    "researcherIds": [
+      "6f5e2a0b-95b6-4306-b263-4d5f4f2f1ef7"
+    ]
+  }'
+
+# then upload PDF using the returned publicationId
+PUBLICATION_ID="<paste-publication-id-here>"
+curl -s -X PUT "http://localhost:8080/admin/publications/$PUBLICATION_ID/pdf" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -F "pdf=@resources/publications/research_overview.pdf"
+```
+
+The `PUT /admin/publications/{publicationId}/pdf` endpoint accepts `multipart/form-data` and stores the file in MinIO; the returned publication will include a `pdfUrl` (presigned download URL).
 
 Example response (`201 Created`):
 
@@ -667,6 +777,31 @@ curl -s -X POST "http://localhost:8080/moderator/actualites" \
   }'
 ```
 
+If you want to attach a photo to an actualité, create it first with the JSON `POST` above, then upload the photo via the dedicated `PUT` endpoint:
+
+```bash
+# create actualité (JSON)
+MODERATOR_TOKEN="<paste-moderator-access-token-here>"
+
+curl -s -X POST "http://localhost:8080/moderator/actualites" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $MODERATOR_TOKEN" \
+  -d '{
+    "titre": "Nouvelle annonce de recherche",
+    "contenu": "Appel à candidatures pour un nouveau projet IA.",
+    "datePublication": "2026-04-22T10:00:00Z",
+    "estEnAvant": true
+  }'
+
+# then upload photo using the returned actualiteId
+ACTUALITE_ID="<paste-actualite-id-here>"
+curl -s -X PUT "http://localhost:8080/moderator/actualites/$ACTUALITE_ID/photo" \
+  -H "Authorization: Bearer $MODERATOR_TOKEN" \
+  -F "photo=@resources/actualite/AI.jpg"
+```
+
+Use the `PUT /moderator/actualites/{actualiteId}/photo` endpoint to upload the file (it accepts `multipart/form-data`) — the returned actualité will include a `photoUrl` (presigned download URL).
+
 Example response (`201 Created`):
 
 ```json
@@ -676,7 +811,8 @@ Example response (`201 Created`):
   "contenu": "Appel à candidatures pour un nouveau projet IA.",
   "datePublication": "2026-04-22T10:00:00Z",
   "estEnAvant": true,
-  "moderateurId": "f2b4ad2e-ef2a-4eb0-96cf-b6ae4ebfd0ec"
+  "moderateurId": "f2b4ad2e-ef2a-4eb0-96cf-b6ae4ebfd0ec",
+  "photoUrl": null
 }
 ```
 
@@ -705,7 +841,8 @@ Example response:
   "contenu": "Contenu mis à jour de l'actualité.",
   "datePublication": "2026-04-23T09:30:00Z",
   "estEnAvant": false,
-  "moderateurId": "f2b4ad2e-ef2a-4eb0-96cf-b6ae4ebfd0ec"
+  "moderateurId": "f2b4ad2e-ef2a-4eb0-96cf-b6ae4ebfd0ec",
+  "photoUrl": null
 }
 ```
 
@@ -717,6 +854,45 @@ curl -i -X DELETE "http://localhost:8080/moderator/actualites/$ACTUALITE_ID" \
 ```
 
 Expected status: `204 No Content`
+
+`PUT /moderator/actualites/{actualiteId}/photo`
+
+Requires JWT for role `MODERATOR` (or `ADMIN`). Uploads/overwrites actualite photo in MinIO.
+
+```bash
+curl -s -X PUT "http://localhost:8080/moderator/actualites/$ACTUALITE_ID/photo" \
+  -H "Authorization: Bearer $MODERATOR_TOKEN" \
+  -F "photo=@/absolute/path/to/photo.jpg"
+```
+
+Example response:
+
+```json
+{
+  "actualiteId": "64e13d8d-4a5f-4a50-b2d7-fd787f7f2473",
+  "titre": "Annonce mise à jour",
+  "contenu": "Contenu mis à jour de l'actualité.",
+  "datePublication": "2026-04-23T09:30:00Z",
+  "estEnAvant": false,
+  "moderateurId": "f2b4ad2e-ef2a-4eb0-96cf-b6ae4ebfd0ec",
+  "photoUrl": "http://localhost:9000/techcenter-photos/actualites/.../photo?..."
+}
+```
+
+`DELETE /moderator/actualites/{actualiteId}/photo`
+
+Requires JWT for role `MODERATOR` (or `ADMIN`). Deletes actualite photo from MinIO and clears stored path.
+
+```bash
+curl -s -X DELETE "http://localhost:8080/moderator/actualites/$ACTUALITE_ID/photo" \
+  -H "Authorization: Bearer $MODERATOR_TOKEN"
+```
+
+Notes:
+
+- `photoUrl` is a **MinIO presigned download URL**.
+- It is generated at response time and may be `null` when no photo is uploaded.
+- URL expiration is controlled by `MINIO_PRESIGN_EXPIRY_SECONDS` (default `3600`).
 
 Request payload for create/update:
 
@@ -813,3 +989,29 @@ export MINIO_PHOTO_BUCKET="techcenter-photos"
 export MINIO_PDF_BUCKET="techcenter-pdfs"
 export MINIO_PRESIGN_EXPIRY_SECONDS="3600"
 ```
+
+### MinIO quick setup & verification
+
+If you started MinIO via Docker Compose (`docker compose up -d minio`) make sure the buckets the app expects exist (`MINIO_PHOTO_BUCKET`, `MINIO_PDF_BUCKET`). You can create and verify them with the `mc` (MinIO Client) tool.
+
+Examples (local machine with `mc` installed):
+
+```bash
+# register alias (adjust endpoint/user/password if you changed them)
+mc alias set techcenter http://localhost:9000 minio minio12345
+
+# create buckets used by the application
+mc mb techcenter/$MINIO_PHOTO_BUCKET
+mc mb techcenter/$MINIO_PDF_BUCKET
+
+# list buckets to verify
+mc ls techcenter
+
+# (optional) set a read policy for public presigned downloads if desired
+# mc policy set download techcenter/$MINIO_PHOTO_BUCKET
+# mc policy set download techcenter/$MINIO_PDF_BUCKET
+```
+
+If you don't have `mc` installed you can use the MinIO web console at `http://localhost:9001` (or the port your compose exposes) and create the buckets manually.
+
+Note: the application generates presigned URLs for downloads; ensure `MINIO_PHOTO_BUCKET` and `MINIO_PDF_BUCKET` match the buckets created in your MinIO instance.

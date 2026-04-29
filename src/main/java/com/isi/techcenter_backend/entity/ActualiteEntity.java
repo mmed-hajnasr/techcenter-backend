@@ -34,6 +34,9 @@ public class ActualiteEntity {
     @Column(name = "est_en_avant", nullable = false)
     private Boolean estEnAvant = Boolean.FALSE;
 
+    @Column(name = "photo", length = 1024)
+    private String photoPath;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "moderateur_id", nullable = false)
     private UserEntity moderateur;
@@ -80,5 +83,13 @@ public class ActualiteEntity {
 
     public void setModerateur(UserEntity moderateur) {
         this.moderateur = moderateur;
+    }
+
+    public String getPhotoPath() {
+        return photoPath;
+    }
+
+    public void setPhotoPath(String photoPath) {
+        this.photoPath = photoPath;
     }
 }

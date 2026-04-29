@@ -24,6 +24,7 @@ import io.minio.http.Method;
 public class MinioStorageService {
 
     private static final String RESEARCHER_PHOTO_PATH = "researchers/%s/photo";
+    private static final String ACTUALITE_PHOTO_PATH = "actualites/%s/photo";
     private static final String PUBLICATION_PDF_PATH = "publications/%s/pdf";
 
     private final MinioClient minioClient;
@@ -60,6 +61,24 @@ public class MinioStorageService {
         String objectName = PUBLICATION_PDF_PATH.formatted(publicationId);
         putObject(properties.pdfBucket(), objectName, pdf);
         return objectName;
+    }
+
+    public String storeActualitePhoto(UUID actualiteId, MultipartFile photo) {
+        validateFile(photo, "photo");
+        String objectName = ACTUALITE_PHOTO_PATH.formatted(actualiteId);
+        putObject(properties.photoBucket(), objectName, photo);
+        return objectName;
+    }
+
+    public void deleteActualitePhoto(String objectName) {
+        deleteObject(properties.photoBucket(), objectName);
+    }
+
+    public String getActualitePhotoPresignedUrl(String objectName) {
+        if (objectName == null || objectName.isBlank()) {
+            return null;
+        }
+        return getPresignedGetUrl(properties.photoBucket(), objectName);
     }
 
     public void deletePublicationPdf(String objectName) {
