@@ -2,6 +2,8 @@ package com.isi.techcenter_backend.error;
 
 import java.time.OffsetDateTime;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -11,6 +13,8 @@ import org.springframework.validation.FieldError;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(AuthException.class)
     public ResponseEntity<ApiErrorResponse> handleAuthException(AuthException exception) {
@@ -33,6 +37,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleUnhandled(Exception exception) {
+        log.error("Unhandled exception: {}", exception.getMessage(), exception);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ApiErrorResponse(
                 "INTERNAL_SERVER_ERROR",
                 "Unexpected internal error",
@@ -47,8 +52,9 @@ public class GlobalExceptionHandler {
                 HttpStatus.NOT_FOUND;
             case INVALID_EMAIL, INVALID_USERNAME, INVALID_PASSWORD, INVALID_ROLE, DOMAIN_NAME_ALREADY_EXISTS,
                     INVALID_DOMAIN_NAME, PUBLICATION_DOI_ALREADY_EXISTS, INVALID_PUBLICATION_TITLE,
-                    INVALID_ACTUALITE_CONTENT, INVALID_FILE ->
+                    INVALID_ACTUALITE_CONTENT, INVALID_FILE, VALIDATION_ERROR ->
                 HttpStatus.BAD_REQUEST;
+            case INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
         };
     }
 

@@ -30,4 +30,13 @@ public interface ChercheurRepository extends JpaRepository<ChercheurEntity, UUID
                         where c.chercheurId = :chercheurId
                         """)
         Optional<ChercheurEntity> findByIdWithSpecialisations(@Param("chercheurId") UUID chercheurId);
+
+        @Query("""
+                        select distinct c
+                        from ChercheurEntity c
+                        left join fetch c.publicationsEcrites ep
+                        left join fetch ep.publication
+                        where c.chercheurId = :chercheurId
+                        """)
+        Optional<ChercheurEntity> findByIdWithPublications(@Param("chercheurId") UUID chercheurId);
 }

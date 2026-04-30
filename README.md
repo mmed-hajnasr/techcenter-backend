@@ -907,6 +907,97 @@ Request payload for create/update:
 
 ---
 
+### Admin AI (ADMIN only)
+
+All routes below require a JWT for a user with role `ADMIN`.
+The AI features are powered by the **techcenter_agents** FastAPI service (see `AI_server_api.md`).
+The service URL is configured via `AI_SERVER_URL` (default `http://localhost:8001`).
+
+`POST /admin/ai/researchers/{researcherId}/biography`
+
+Fetches all publications of the researcher (those that have a resume), sends them to the AI server, and returns a generated biography.
+
+```bash
+RESEARCHER_ID="6f5e2a0b-95b6-4306-b263-4d5f4f2f1ef7"
+
+curl -s -X POST "http://localhost:8080/admin/ai/researchers/$RESEARCHER_ID/biography" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+Example response:
+
+```json
+{
+  "name": "alice researcher",
+  "biography": "Alice is a prolific researcher whose work spans machine learning and climate science...",
+  "researchAreas": ["Machine Learning", "Climate Science", "Deep Learning"]
+}
+```
+
+Errors:
+
+- `RESEARCHER_NOT_FOUND` – researcher does not exist
+- `VALIDATION_ERROR` – researcher has no publications with a resume
+- `INTERNAL_ERROR` – AI server returned an error (e.g. token limit exceeded)
+
+---
+
+`POST /admin/ai/publications/{publicationId}/paper`
+
+Downloads the publication's PDF via a presigned MinIO URL, sends it to the AI server, and returns a generated title and resume extracted from the paper.
+
+```bash
+PUBLICATION_ID="f1c3d6a8-6c43-4b4e-b4c2-8e0c2c4f09f2"
+
+curl -s -X POST "http://localhost:8080/admin/ai/publications/$PUBLICATION_ID/paper" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+Example response:
+
+```json
+{
+  "title": "AI for Climate Modeling",
+  "resume": "This paper presents a comprehensive survey of machine learning methods applied to climate simulation..."
+}
+```
+
+Errors:
+
+- `PUBLICATION_NOT_FOUND` – publication does not exist
+- `VALIDATION_ERROR` – publication has no PDF attached
+- `INTERNAL_ERROR` – AI server returned an error (e.g. unreadable PDF, token limit exceeded)
+
+---
+
+`POST /admin/ai/publications/{publicationId}/news-article`
+
+Uses the publication's resume and its authors' biographies to generate a news article (headline + body text) suitable for a general audience.
+
+```bash
+PUBLICATION_ID="f1c3d6a8-6c43-4b4e-b4c2-8e0c2c4f09f2"
+
+curl -s -X POST "http://localhost:8080/admin/ai/publications/$PUBLICATION_ID/news-article" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+Example response:
+
+```json
+{
+  "headline": "Local Researchers Harness AI to Predict Tomorrow's Climate",
+  "article": "A team of scientists has unveiled a groundbreaking approach that uses artificial intelligence to model climate patterns with unprecedented accuracy..."
+}
+```
+
+Errors:
+
+- `PUBLICATION_NOT_FOUND` – publication does not exist
+- `VALIDATION_ERROR` – publication has no resume, or has no authors
+- `INTERNAL_ERROR` – AI server returned an error (e.g. token limit exceeded)
+
+---
+
 ## Error Responses
 
 Common format:
@@ -975,6 +1066,7 @@ Key settings (from `src/main/resources/application.properties`):
 - `MINIO_PHOTO_BUCKET` (default `techcenter-photos`)
 - `MINIO_PDF_BUCKET` (default `techcenter-pdfs`)
 - `MINIO_PRESIGN_EXPIRY_SECONDS` (default `3600`)
+- `AI_SERVER_URL` (default `http://localhost:8001`)
 
 Example:
 
@@ -988,6 +1080,7 @@ export MINIO_ROOT_PASSWORD="minio12345"
 export MINIO_PHOTO_BUCKET="techcenter-photos"
 export MINIO_PDF_BUCKET="techcenter-pdfs"
 export MINIO_PRESIGN_EXPIRY_SECONDS="3600"
+export AI_SERVER_URL="http://localhost:8001"
 ```
 
 ### MinIO quick setup & verification
